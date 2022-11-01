@@ -1,0 +1,250 @@
+<ui version="4.0" >
+ <class>matselDlg</class>
+ <widget class="QDialog" name="matselDlg" >
+  <property name="geometry" >
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>388</width>
+    <height>380</height>
+   </rect>
+  </property>
+  <property name="windowTitle" >
+   <string>Maturity Selection</string>
+  </property>
+  <widget class="QGroupBox" name="groupBox" >
+   <property name="geometry" >
+    <rect>
+     <x>10</x>
+     <y>30</y>
+     <width>371</width>
+     <height>251</height>
+    </rect>
+   </property>
+   <property name="title" >
+    <string/>
+   </property>
+   <widget class="QPushButton" name="mat1Btn" >
+    <property name="geometry" >
+     <rect>
+      <x>10</x>
+      <y>10</y>
+      <width>171</width>
+      <height>51</height>
+     </rect>
+    </property>
+    <property name="font" >
+     <font>
+      <pointsize>14</pointsize>
+     </font>
+    </property>
+    <property name="text" >
+     <string>PushButton</string>
+    </property>
+    <property name="checkable" >
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="mat5Btn" >
+    <property name="geometry" >
+     <rect>
+      <x>190</x>
+      <y>10</y>
+      <width>171</width>
+      <height>51</height>
+     </rect>
+    </property>
+    <property name="font" >
+     <font>
+      <pointsize>14</pointsize>
+     </font>
+    </property>
+    <property name="text" >
+     <string>PushButton</string>
+    </property>
+    <property name="checkable" >
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="mat2Btn" >
+    <property name="geometry" >
+     <rect>
+      <x>10</x>
+      <y>70</y>
+      <width>171</width>
+      <height>51</height>
+     </rect>
+    </property>
+    <property name="font" >
+     <font>
+      <pointsize>14</pointsize>
+     </font>
+    </property>
+    <property name="text" >
+     <string>PushButton</string>
+    </property>
+    <property name="checkable" >
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="mat6Btn" >
+    <property name="geometry" >
+     <rect>
+      <x>190</x>
+      <y>70</y>
+      <width>171</width>
+      <height>51</height>
+     </rect>
+    </property>
+    <property name="font" >
+     <font>
+      <pointsize>14</pointsize>
+     </font>
+    </property>
+    <property name="text" >
+     <string>PushButton</string>
+    </property>
+    <property name="checkable" >
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="mat3Btn" >
+    <property name="geometry" >
+     <rect>
+      <x>10</x>
+      <y>130</y>
+      <width>171</width>
+      <height>51</height>
+     </rect>
+    </property>
+    <property name="font" >
+     <font>
+      <pointsize>14</pointsize>
+     </font>
+    </property>
+    <property name="text" >
+     <string>PushButton</string>
+    </property>
+    <property name="checkable" >
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="mat7Btn" >
+    <property name="geometry" >
+     <rect>
+      <x>190</x>
+      <y>130</y>
+      <width>171</width>
+      <height>51</height>
+     </rect>
+    </property>
+    <property name="font" >
+     <font>
+      <pointsize>14</pointsize>
+     </font>
+    </property>
+    <property name="text" >
+     <string>PushButton</string>
+    </property>
+    <property name="checkable" >
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="mat4Btn" >
+    <property name="geometry" >
+     <rect>
+      <x>10</x>
+      <y>190</y>
+      <width>171</width>
+      <height>51</height>
+     </rect>
+    </property>
+    <property name="font" >
+     <font>
+      <pointsize>14</pointsize>
+     </font>
+    </property>
+    <property name="text" >
+     <string>PushButton</string>
+    </property>
+    <property name="checkable" >
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="mat8Btn" >
+    <property name="geometry" >
+     <rect>
+      <x>190</x>
+      <y>190</y>
+      <width>171</width>
+      <height>51</height>
+     </rect>
+    </property>
+    <property name="font" >
+     <font>
+      <pointsize>14</pointsize>
+     </font>
+    </property>
+    <property name="text" >
+     <string>PushButton</string>
+    </property>
+    <property name="checkable" >
+     <bool>false</bool>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="groupBox_2" >
+   <property name="geometry" >
+    <rect>
+     <x>10</x>
+     <y>290</y>
+     <width>371</width>
+     <height>80</height>
+    </rect>
+   </property>
+   <property name="title" >
+    <string/>
+   </property>
+   <widget class="QPushButton" name="guideBtn" >
+    <property name="geometry" >
+     <rect>
+      <x>10</x>
+      <y>10</y>
+      <width>351</width>
+      <height>61</height>
+     </rect>
+    </property>
+    <property name="font" >
+     <font>
+      <pointsize>14</pointsize>
+     </font>
+    </property>
+    <property name="text" >
+     <string>View Maturity Guide</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QLabel" name="label" >
+   <property name="geometry" >
+    <rect>
+     <x>10</x>
+     <y>10</y>
+     <width>139</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="font" >
+    <font>
+     <pointsize>12</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="text" >
+    <string>Select Maturity...</string>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

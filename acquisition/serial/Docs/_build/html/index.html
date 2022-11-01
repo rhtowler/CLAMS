@@ -1,0 +1,264 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Welcome to QSerialMonitor’s documentation! &mdash; QtAck v0.5 documentation</title>
+    <link rel="stylesheet" href="_static/nature.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.5',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="QtAck v0.5 documentation" href="#" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="#">QtAck v0.5 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="welcome-to-qserialmonitor-s-documentation">
+<h1>Welcome to QSerialMonitor&#8217;s documentation!<a class="headerlink" href="#welcome-to-qserialmonitor-s-documentation" title="Permalink to this headline">¶</a></h1>
+<p>Contents:</p>
+<div class="toctree-wrapper compound">
+<ul class="simple">
+</ul>
+</div>
+<span class="target" id="module-QtAck.QSerialMonitor"></span><dl class="class">
+<dt id="QtAck.QSerialMonitor.QSerialMonitor">
+<em class="property">class </em><tt class="descclassname">QtAck.QSerialMonitor.</tt><tt class="descname">QSerialMonitor</tt><big>(</big><em>parent=None</em><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.QSerialMonitor" title="Permalink to this definition">¶</a></dt>
+<dd><p>A class for acquiring data from multiple serial port devices.</p>
+<p>QSerialMonitor watches a collection of serial ports and emits a signal when
+data is received by any of the monitored ports. QSerialMonitor does this by
+spawning a thread for each port that is monitored that periodically
+polls the serial port, buffering data until a complete line is received. (A
+complete line is defined as a line terminated by LF, CR+LF, or CR.) The line
+can optionally be parsed and the resulting output is passed from the
+monitoring thread to QSerialMonitor via Qt&#8217;s signal/Slot mechanism which
+then re-emits these signals which are then handled by the application&#8217;s
+serial event handling method. QSerialMonitor handles both sending and receiving
+of data and thus can be used for polled sensors and for general serial I/O.</p>
+<p>Test</p>
+<p><strong>Public Methods</strong></p>
+<p><strong>addDevice</strong> &#8211; add a serial device to the list of devices that
+QSerialMonitor watches.</p>
+<p><strong>removeDevice</strong> &#8211; Remove a device from the list of devices that
+QSerialMonitor watches. If the device is currently being monitored,
+the acquisition thread is stopped and the serial port is closed.</p>
+<p><strong>startMonitoring</strong> &#8211; Start monitoring all (or optionally some) of the
+devices that have been registered by calls to addDevice. Calling
+startMonitoring will open the serial ports and start the acquisition
+threads for the specified devices.</p>
+<p><strong>stopMonitoring</strong> &#8211; Stop monitoring all (or optionally some) of the
+devices that have been registered by calls to addDevice. The acquisition
+threads are stopped and the serial ports closed for the specified devices.</p>
+<p>Signals</p>
+<p><strong>SerialDataReceived</strong> &#8211; This signal is emitted when a complete line of
+data is received by one of the monitored serial ports. If the line is
+parsed, the signal is only emitted if the parsing method returns data.</p>
+<p>Applications wishing to receive data from QSerialMonitor must connect
+this signal to a method that accepts the following parameters:</p>
+<blockquote>
+&#64;rtype: String
+&#64;returns: The device name string, as defined in the call to addDevice.
+&#64;rtype: String
+&#64;returns: The data received by the port identified by the device name.
+&#64;rtype: Exception
+&#64;returns: If there is an error parsing the data,</blockquote>
+<dl class="method">
+<dt id="QtAck.QSerialMonitor.QSerialMonitor.addDevice">
+<tt class="descname">addDevice</tt><big>(</big><em>deviceName</em>, <em>port</em>, <em>baud</em>, <em>parseType</em>, <em>parseExp</em>, <em>parseIndex</em>, <em>cmdPrompt=''</em>, <em>byteSize=8</em>, <em>parity='N'</em>, <em>stopBits=1</em>, <em>flowControl='NONE'</em>, <em>pollRate=10</em><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.QSerialMonitor.addDevice" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a serial device to the list of devices that QSerialMonitor watches.</p>
+<p><em>deviceName</em> is a string that serves as a unique identfier for the serial port.
+This name will be included in the emitted signals to associate data with a device.</p>
+<p><em>port</em> is a string containing the platform specific serial port identifier. For
+example, on windows systems it would be <tt class="docutils literal"><span class="pre">'COM1'</span></tt> or <tt class="docutils literal"><span class="pre">'COM12'</span></tt>. On Linux systems it
+would be <tt class="docutils literal"><span class="pre">'/dev/ttyS0'</span></tt> or similar.</p>
+<p><em>baud</em> is the serial port baud rate such as 9600 or 115200 etc.</p>
+<p><em>parseType</em> specifies how the incoming data is parsed before the data is emitted
+via the <em>SerialDataReceived</em> signal. Valid values are:</p>
+<blockquote>
+<p><tt class="docutils literal"><span class="pre">0</span></tt> &#8211; No parsing is performed but newline characters are stripped.</p>
+<p><tt class="docutils literal"><span class="pre">1</span></tt> &#8211; The incoming line is parsed using a delimiter. The delimiter is
+specified in the <em>parseExp</em> argument and the <em>parseIndex</em> argument specifies
+which field is returned.</p>
+<p><tt class="docutils literal"><span class="pre">2</span></tt> &#8211; The incoming line is parsed using a regular expression. The regex is
+passed via the <em>parseExp</em> argument and and the <em>parseIndex</em> argument specifies
+which field is returned.</p>
+</blockquote>
+<p><em>parseExp</em> is a string defining either the parsing delimiter if <em>parseType</em> is 1
+or the regular expression if <em>parseType</em> is set to 2. If <cite>parseType</cite> is 0, specify
+an empty string <tt class="docutils literal"><span class="pre">''</span></tt>.</p>
+<p><em>parseIndex</em> is a number that is the index into the list returned by the parsing
+method of the data element of interest. This parameter must be specified even if
+only 1 element is returned from the parsing method (in which case <em>parseIndex</em>
+would be set to <tt class="docutils literal"><span class="pre">0</span></tt>.</p>
+<p><em>cmdPrompt</em> (optional) is a string that specifies the command prompt for instruments
+that require user interaction. Text based UI&#8217;s that require user interaction may
+output a command prompt which lacks a newline character. Setting <em>cmdPrompt</em> to
+the text of this command prompt will result in the command prompt line being
+handled like a regular line where the text of the command prompt is emitted via
+the <em>SerialDataReceived</em> signal. This allows the method handling the
+<em>SerialDataReceived</em> signal to &#8220;respond&#8221; to the command prompt.</p>
+<p><em>byteSize</em> (optional) a number specifying the number of data bits. Possible values
+are <tt class="docutils literal"><span class="pre">5</span></tt>, <tt class="docutils literal"><span class="pre">6</span></tt>, <tt class="docutils literal"><span class="pre">7</span></tt>, and <tt class="docutils literal"><span class="pre">8</span></tt>. Default is <tt class="docutils literal"><span class="pre">8</span></tt>.</p>
+<p><em>parity</em> (optional) a string specifying the serial port parity checking method.
+Possible values are <tt class="docutils literal"><span class="pre">N</span></tt> for None, <tt class="docutils literal"><span class="pre">E</span></tt> for Even, <tt class="docutils literal"><span class="pre">O</span></tt> for Odd, <tt class="docutils literal"><span class="pre">M</span></tt> for Mark,
+and <tt class="docutils literal"><span class="pre">S</span></tt> for Space. Default is <tt class="docutils literal"><span class="pre">N</span></tt>.</p>
+<p><em>stopBits</em> (optional) a number specifying the number of stop bits. Possible values
+are <tt class="docutils literal"><span class="pre">1</span></tt>, <tt class="docutils literal"><span class="pre">1.5</span></tt>, and <tt class="docutils literal"><span class="pre">2</span></tt>. Default is <tt class="docutils literal"><span class="pre">1</span></tt>.</p>
+<p><em>flowControl</em> (optional) a string specifying the flow control method. Possible
+values are <tt class="docutils literal"><span class="pre">RTSCTS</span></tt> for RTS/CTS hardware flow control, <tt class="docutils literal"><span class="pre">DSRDTR</span></tt> for DSR/DTR
+hardware flow control, <tt class="docutils literal"><span class="pre">SOFTWARE</span></tt> for XON/XOFF software flow control and
+<tt class="docutils literal"><span class="pre">NONE</span></tt> for no flow control. Default is <tt class="docutils literal"><span class="pre">NONE</span></tt>.</p>
+<p><em>pollRate</em> (optional)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="QtAck.QSerialMonitor.QSerialMonitor.removeDevice">
+<tt class="descname">removeDevice</tt><big>(</big><em>deviceName</em><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.QSerialMonitor.removeDevice" title="Permalink to this definition">¶</a></dt>
+<dd><p>Removes a device from the list of devices that are monitored stopping the thread
+that monitors said device if needed.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="QtAck.QSerialMonitor.QSerialMonitor.startMonitoring">
+<tt class="descname">startMonitoring</tt><big>(</big><em>devices=None</em><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.QSerialMonitor.startMonitoring" title="Permalink to this definition">¶</a></dt>
+<dd><p>Start monitoring. Serial ports are opened and the monitoring threads are
+started.  As data is received from the individual ports that are being
+monitored it is sent via the <tt class="docutils literal"><span class="pre">SerialDataReceived</span></tt> signal.</p>
+<p>You can start specific devices by setting the <cite>devices</cite> keyword to a list
+of device(s) you want to start.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="QtAck.QSerialMonitor.QSerialMonitor.stopMonitoring">
+<tt class="descname">stopMonitoring</tt><big>(</big><em>devices=None</em><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.QSerialMonitor.stopMonitoring" title="Permalink to this definition">¶</a></dt>
+<dd><p>Stop monitoring. The serial ports are closed and the monitoring threads
+are stopped.</p>
+<p>You can stop specific devices by setting the <cite>devices</cite> keyword to a list
+of device(s) you want to stop.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="QtAck.QSerialMonitor.QSerialMonitor.txData">
+<tt class="descname">txData</tt><big>(</big><em>deviceName</em>, <em>data</em><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.QSerialMonitor.txData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Transmit data to the specified device</p>
+<p><cite>deviceName</cite> must be set to the name of a configured</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="QtAck.QSerialMonitor.QSerialMonitor.whosMonitoring">
+<tt class="descname">whosMonitoring</tt><big>(</big><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.QSerialMonitor.whosMonitoring" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns a list of currently running serial acquisition threads</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="QtAck.QSerialMonitor.bin">
+<tt class="descclassname">QtAck.QSerialMonitor.</tt><tt class="descname">bin</tt><big>(</big><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.bin" title="Permalink to this definition">¶</a></dt>
+<dd><p>bin(QTextStream) -&gt; QTextStream</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="QtAck.QSerialMonitor.hex">
+<tt class="descclassname">QtAck.QSerialMonitor.</tt><tt class="descname">hex</tt><big>(</big><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.hex" title="Permalink to this definition">¶</a></dt>
+<dd><p>hex(QTextStream) -&gt; QTextStream</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="QtAck.QSerialMonitor.oct">
+<tt class="descclassname">QtAck.QSerialMonitor.</tt><tt class="descname">oct</tt><big>(</big><big>)</big><a class="headerlink" href="#QtAck.QSerialMonitor.oct" title="Permalink to this definition">¶</a></dt>
+<dd><p>oct(QTextStream) -&gt; QTextStream</p>
+</dd></dl>
+
+</div>
+<div class="section" id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>
+<ul class="simple">
+<li><a class="reference internal" href="genindex.html"><em>Index</em></a></li>
+<li><a class="reference internal" href="py-modindex.html"><em>Module Index</em></a></li>
+<li><a class="reference internal" href="search.html"><em>Search Page</em></a></li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="#">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Welcome to QSerialMonitor&#8217;s documentation!</a><ul>
+</ul>
+</li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+</ul>
+
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/index.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="#">QtAck v0.5 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2010, Rick Towler.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.4.
+    </div>
+  </body>
+</html>

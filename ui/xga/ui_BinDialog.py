@@ -1,0 +1,148 @@
+# -*- coding: utf-8 -*-
+
+# Form implementation generated from reading ui file 'C:\Users\rick.towler\Desktop\CLAMS\ui\xga\BinDialog.ui'
+#
+# Created by: PyQt4 UI code generator 4.11.4
+#
+# WARNING! All changes made in this file will be lost!
+
+from PyQt4 import QtCore, QtGui
+
+try:
+    _fromUtf8 = QtCore.QString.fromUtf8
+except AttributeError:
+    def _fromUtf8(s):
+        return s
+
+try:
+    _encoding = QtGui.QApplication.UnicodeUTF8
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig, _encoding)
+except AttributeError:
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig)
+
+class Ui_binDialog(object):
+    def setupUi(self, binDialog):
+        binDialog.setObjectName(_fromUtf8("binDialog"))
+        binDialog.resize(376, 382)
+        self.label = QtGui.QLabel(binDialog)
+        self.label.setGeometry(QtCore.QRect(10, 0, 347, 34))
+        font = QtGui.QFont()
+        font.setPointSize(12)
+        font.setBold(True)
+        font.setWeight(75)
+        self.label.setFont(font)
+        self.label.setObjectName(_fromUtf8("label"))
+        self.widthBtn = QtGui.QPushButton(binDialog)
+        self.widthBtn.setGeometry(QtCore.QRect(10, 40, 171, 41))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.widthBtn.setFont(font)
+        self.widthBtn.setObjectName(_fromUtf8("widthBtn"))
+        self.widthLabel = QtGui.QLabel(binDialog)
+        self.widthLabel.setGeometry(QtCore.QRect(200, 40, 161, 41))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.widthLabel.setFont(font)
+        self.widthLabel.setAutoFillBackground(True)
+        self.widthLabel.setFrameShape(QtGui.QFrame.Box)
+        self.widthLabel.setLineWidth(2)
+        self.widthLabel.setText(_fromUtf8(""))
+        self.widthLabel.setObjectName(_fromUtf8("widthLabel"))
+        self.lengthBtn = QtGui.QPushButton(binDialog)
+        self.lengthBtn.setGeometry(QtCore.QRect(10, 90, 171, 41))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.lengthBtn.setFont(font)
+        self.lengthBtn.setObjectName(_fromUtf8("lengthBtn"))
+        self.lengthLabel = QtGui.QLabel(binDialog)
+        self.lengthLabel.setGeometry(QtCore.QRect(200, 90, 161, 41))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.lengthLabel.setFont(font)
+        self.lengthLabel.setAutoFillBackground(True)
+        self.lengthLabel.setFrameShape(QtGui.QFrame.Box)
+        self.lengthLabel.setLineWidth(2)
+        self.lengthLabel.setText(_fromUtf8(""))
+        self.lengthLabel.setObjectName(_fromUtf8("lengthLabel"))
+        self.depthLabel = QtGui.QLabel(binDialog)
+        self.depthLabel.setGeometry(QtCore.QRect(200, 140, 161, 41))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.depthLabel.setFont(font)
+        self.depthLabel.setAutoFillBackground(True)
+        self.depthLabel.setFrameShape(QtGui.QFrame.Box)
+        self.depthLabel.setLineWidth(2)
+        self.depthLabel.setText(_fromUtf8(""))
+        self.depthLabel.setObjectName(_fromUtf8("depthLabel"))
+        self.depthBtn = QtGui.QPushButton(binDialog)
+        self.depthBtn.setGeometry(QtCore.QRect(10, 140, 171, 41))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.depthBtn.setFont(font)
+        self.depthBtn.setObjectName(_fromUtf8("depthBtn"))
+        self.densityBtn = QtGui.QPushButton(binDialog)
+        self.densityBtn.setGeometry(QtCore.QRect(10, 190, 171, 41))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.densityBtn.setFont(font)
+        self.densityBtn.setObjectName(_fromUtf8("densityBtn"))
+        self.densityLabel = QtGui.QLabel(binDialog)
+        self.densityLabel.setGeometry(QtCore.QRect(200, 190, 161, 41))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.densityLabel.setFont(font)
+        self.densityLabel.setAutoFillBackground(True)
+        self.densityLabel.setFrameShape(QtGui.QFrame.Box)
+        self.densityLabel.setLineWidth(2)
+        self.densityLabel.setObjectName(_fromUtf8("densityLabel"))
+        self.haulWtLabel = QtGui.QLabel(binDialog)
+        self.haulWtLabel.setGeometry(QtCore.QRect(200, 260, 161, 41))
+        font = QtGui.QFont()
+        font.setPointSize(20)
+        self.haulWtLabel.setFont(font)
+        self.haulWtLabel.setAutoFillBackground(True)
+        self.haulWtLabel.setFrameShape(QtGui.QFrame.Box)
+        self.haulWtLabel.setLineWidth(2)
+        self.haulWtLabel.setText(_fromUtf8(""))
+        self.haulWtLabel.setObjectName(_fromUtf8("haulWtLabel"))
+        self.cancelBtn = QtGui.QPushButton(binDialog)
+        self.cancelBtn.setGeometry(QtCore.QRect(200, 320, 161, 51))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.cancelBtn.setFont(font)
+        self.cancelBtn.setObjectName(_fromUtf8("cancelBtn"))
+        self.okBtn = QtGui.QPushButton(binDialog)
+        self.okBtn.setGeometry(QtCore.QRect(10, 320, 171, 51))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.okBtn.setFont(font)
+        self.okBtn.setObjectName(_fromUtf8("okBtn"))
+        self.line = QtGui.QFrame(binDialog)
+        self.line.setGeometry(QtCore.QRect(10, 240, 371, 16))
+        self.line.setFrameShape(QtGui.QFrame.HLine)
+        self.line.setFrameShadow(QtGui.QFrame.Sunken)
+        self.line.setObjectName(_fromUtf8("line"))
+        self.compBtn = QtGui.QPushButton(binDialog)
+        self.compBtn.setGeometry(QtCore.QRect(10, 260, 171, 41))
+        font = QtGui.QFont()
+        font.setPointSize(14)
+        self.compBtn.setFont(font)
+        self.compBtn.setObjectName(_fromUtf8("compBtn"))
+
+        self.retranslateUi(binDialog)
+        QtCore.QMetaObject.connectSlotsByName(binDialog)
+
+    def retranslateUi(self, binDialog):
+        binDialog.setWindowTitle(_translate("binDialog", "Bin Dimensions", None))
+        self.label.setText(_translate("binDialog", "Enter dimensions in meters...", None))
+        self.widthBtn.setText(_translate("binDialog", "Width", None))
+        self.lengthBtn.setText(_translate("binDialog", "Length", None))
+        self.depthBtn.setText(_translate("binDialog", "Depth", None))
+        self.densityBtn.setText(_translate("binDialog", "Density", None))
+        self.densityLabel.setText(_translate("binDialog", "1.0", None))
+        self.cancelBtn.setText(_translate("binDialog", "Cancel", None))
+        self.okBtn.setText(_translate("binDialog", "OK", None))
+        self.compBtn.setText(_translate("binDialog", "Compute Haul WT", None))
+

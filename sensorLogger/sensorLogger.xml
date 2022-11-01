@@ -1,0 +1,38 @@
+<configuration>
+
+<application>
+
+    <!-- specify if we should log data to disk and where -->
+    <log_data>True</log_data>
+    <log_data_path>c:/temp/data</log_data_path>
+    <!-- set the interval in minutes between forced writing of data to disk -->
+    <log_flush_interval>2</log_flush_interval>
+    <!--  specify if we should start the SCS server and if so, the IP address and port
+           An empty IP address will attempt to open a server on all available interfaces
+           while 0.0.0.0 will open a server on the loopback interface -->
+    <start_scs_server>True</start_scs_server>
+    <scs_server_ip>0.0.0.0</scs_server_ip>
+    <scs_server_port>505</scs_server_port>
+
+</application>
+
+<devices>
+    <device name="GPS" comport="COM4" baud="4800">
+        <logger nmea_source="$GPGGA" verify_checksum="False"/>
+        <logger nmea_source="$GPRMC" verify_checksum="False"/>
+        <sensor name="GP170-GPRMC-RAW" nmea_source="$GPRMC" parse_type="none" parse_expression="" parse_index=""/>
+        <sensor name="GP170-Lat" nmea_source="$GPGGA" parse_type="delimited" parse_expression="," parse_index="2,3"/>
+        <sensor name="GP170-Lon" nmea_source="$GPGGA" parse_type="delimited" parse_expression="," parse_index="4,5"/>
+        <sensor name="GP170-SOG" nmea_source="$GPRMC" parse_type="delimited" parse_expression="," parse_index="7"/>
+
+    </device>
+    <device name="EK80" comport="COM6" baud="4800">
+        <logger nmea_source="$SDDBT" verify_checksum="False"/>
+        <sensor name="EK80-SDDBT-RAW" nmea_source="$SDDBT" parse_type="none" parse_expression="" parse_index=""/>
+        <sensor name="DYDBS-DRV-VALUE" nmea_source="$SDDBT" parse_type="delimited" parse_expression="," parse_index="3"/>
+
+    </device>
+</devices>
+</configuration>
+
+
