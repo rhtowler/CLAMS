@@ -8,9 +8,9 @@ the GUI form that all other forms are launched from.
 import sys
 import os
 import string
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from PyQt4 import QtSql
+from PyQt6.QtCore import *
+from PyQt6.QtGui import *
+from PyQt6 import QtSql
 import messagedlg
 import numpad
 from ui.xga import ui_CLAMSMain
