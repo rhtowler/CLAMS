@@ -1,6 +1,6 @@
 
-from PyQt4.QtCore import *
-import QSerialThread
+from PyQt5.QtCore import pyqtSignal, QObject, QThread, pyqtSlot
+from . import SerialDevice
 
 
 class SerialMonitor(QObject):
@@ -53,22 +53,42 @@ class SerialMonitor(QObject):
 
     """
 
+    #  define this class's signals
+    SerialControlState = pyqtSignal(str, str, bool)
+    SerialControlChanged = pyqtSignal(str, dict)
+    SerialDataReceived = pyqtSignal(str, str, object)
+    txSerialData = pyqtSignal(str, str)
+    getSerialCTL = pyqtSignal(str)
+    setSerialRTS = pyqtSignal(str, bool)
+    setSerialDTR = pyqtSignal(str, bool)
+    stopDevice = pyqtSignal(list)
+
+
     def __init__(self, parent=None):
         """Initialize this SerialMonitor instance."""
-        QObject.__init__(self, parent)
-        self.__devices = dict()
+        super(SerialMonitor, self).__init__(None)
+        #QObject.__init__(self, parent)
+
+        #  create the devices dictionary which is keyed by device name and stores the
+        #  various parameters for that device. (Unlike earlier versions, this dict does
+        #  not store the reference to the serialDevice object.
+        self.devices = dict()
+
+        #  create the threads dictionary which is keyed by the QThread object and
+        #  stores a reference to the serialDevice object.
+        self.threads = dict()
 
 
     def __del__(self):
         """Clean up any active QserialThread objects before deleting the SerialMonitor instance."""
-        devices = self.__devices.keys()
-        for device in devices:
-            self.removeDevice(device)
+
+        #  call stopMonitoring
+        self.stopMonitoring()
 
 
     def addDevice(self, deviceName, port, baud, parseType, parseExp, parseIndex, cmdPrompt='', \
-                  byteSize=8, parity='N', stopBits=1, flowControl='NONE', pollRate=100,
-                  initialState = (True, True)):
+                  byteSize=8, parity='N', stopBits=1, flowControl='NONE', pollRate=500,
+                  txRate=500, initialState = (True, True)):
         """Add a serial device to the list of devices that SerialMonitor watches.
 
         *deviceName* is a string that serves as a unique identfier for the serial port.
@@ -76,7 +96,8 @@ class SerialMonitor(QObject):
 
         *port* is a string containing the platform specific serial port identifier. For
         example, on windows systems it would be ``'COM1'`` or ``'COM12'``. On Linux systems it
-        would be ``'/dev/ttyS0'`` or similar.
+        would be ``'/dev/ttyS0'`` or similar. You can also specify the IP address and port
+        for RFC 2217 Network ports by setting the port string to 'rfc2217://<host>:<port>'
 
         *baud* is the serial port baud rate such as 9600 or 115200 etc.
 
@@ -140,110 +161,132 @@ class SerialMonitor(QObject):
         ``NONE`` for no flow control. Default is ``NONE``.
 
         *pollRate* (optional) a number specifying the rate (in Hz) that the serial port
-        is polled. During polling both the input and output buffers are checked for data
-        and if data is present the buffer is read from or written to the port. When working
-        at high baud rates it may be necessary to increase this value. Valid values are in
-        the range of 1-999999 Hz. The default value is 100 Hz.
+        is polled. During polling the input buffer is checked for data and if data is present
+        the buffer is read from. Valid values are in the range of 1-1000 Hz.
+        The default value is 1000 Hz.
+
+        *txRate* (optional) a number specifying the rate (in Hz) that the tx buffer
+        is polled. During polling the output buffer is checked for data and if data is present
+        one "line" of data is transmitted. This value can be set to help throttle transmits
+        to devices that cannot keep up with the flow of data. Valid values are in the range
+        of 1-1000 Hz. The default value is 1000 Hz.
 
         *initialState* (optional) a 2-tuple of booleans containing the initial state of the
         control lines RTS and DTR (in that order) for the serial port when added to the
         monitor
         """
 
-        if deviceName in self.__devices:
+        if deviceName in self.devices:
             #  device name is already in use - issue error
-            raise QSerialError('Device name ' + deviceName + ' is already in use. Specify a unique name.')
+            raise SerialError('Device name ' + deviceName + ' is already in use. Specify a unique name.')
 
-        #  create the monitor thread and add to the device dictionary
-        self.__devices[deviceName] = QSerialThread.QSerialThread(deviceName, [port, baud, byteSize, parity, stopBits,
-                                                   flowControl, parseType, parseExp, parseIndex, cmdPrompt],
-                                                   pollHz=pollRate, initialState=initialState, parent=self)
-        #  connect us to the monitor thread's signals
-        self.connect(self.__devices[deviceName], SIGNAL("SerialDataReceived"), self.__rxData)
-        self.connect(self.__devices[deviceName], SIGNAL("SerialControlChanged"), self.__controlData)
-        self.connect(self.__devices[deviceName], SIGNAL("DCEControlState"), self.__controlDataState)
-
-
-    def removeDevice(self, deviceName):
-        """
-          Removes a device from the list of devices that are monitored stopping the thread
-          that monitors said device if needed.
-        """
-
-        if deviceName in self.__devices:
-            if self.__devices[deviceName].isRunning():
-                #  stop the serial monitor thread associated with this device
-                self.__devices[deviceName].stopMonitor()
-
-            #  remove the device from device list
-            self.__devices.pop(deviceName)
-
-        else:
-           raise QSerialError('Unable to remove unknown device: ' + deviceName + '.')
+        #  store the parameters for this device - we don't actually create the device here. We but
+        #  create the SerialMonitorThread object when the device is started.
+        self.devices[deviceName] = {'deviceName':deviceName,
+                                    'port':port,
+                                    'baud':baud,
+                                    'parseType':parseType,
+                                    'parseExp':parseExp,
+                                    'parseIndex':parseIndex,
+                                    'cmdPrompt':cmdPrompt,
+                                    'byteSize':byteSize,
+                                    'parity':parity,
+                                    'stopBits':stopBits,
+                                    'flowControl':flowControl,
+                                    'pollRate':pollRate,
+                                    'txRate':txRate,
+                                    'initialState':initialState,
+                                    'thread':None}
 
 
     def startMonitoring(self, devices=None):
         """
-          Start monitoring. Serial ports are opened and the monitoring threads are
-          started.  As data is received from the individual ports that are being
-          monitored it is sent via the ``SerialDataReceived`` signal.
+          Start monitoring creates an instance of SerialMonitorThread for each device
+          specified, moves the object to a new thread, and starts the thread. The
+          SerialMonitorThread objects then open their serial port and start polling
+          As data is received from the individual ports it is sent via the
+          ``SerialDataReceived`` signal.
 
           You can start specific devices by setting the `devices` keyword to a list
-          of device(s) you want to start.
+          of device(s) you want to start. If you do not specify any devices, all
+          devices will be started.
         """
 
-        deviceErrors = {}
 
         if devices == None:
             #  no devices specified - get a list of all devices
-            devices = self.__devices.keys()
+            devices = self.devices.keys()
+        elif (type(devices) is str):
+            #  device was specified as a string, put it in a list
+            devices = [devices]
 
+        #  iterate through the provided devices, starting each one
         for device in devices:
-            #  try to start each device in the list
-            if not self.__devices[device].isRunning():
-                try:
-                    self.__devices[device].startMonitor()
-                except Exception, e:
-                    deviceErrors[device] = e
 
-        if (len(deviceErrors) > 0):
-            #  pass the error up the stack
-            raise QSerialPortError(deviceErrors)
+            #  create the serialDevice object
+            serialDevice = SerialDevice.SerialDevice(self.devices[device])
+
+            #  connect us to the SerialMonitorThread's signals
+            serialDevice.SerialDataReceived.connect(self.dataReceived)
+            serialDevice.SerialControlChanged.connect(self.controlDataChanged)
+            serialDevice.DCEControlState.connect(self.controlDataState)
+            serialDevice.SerialError.connect(self.serialError)
+            self.stopDevice.connect(serialDevice.stopPolling)
+
+            #  connect our signals to the SerialMonitorThread
+            self.txSerialData.connect(serialDevice.write)
+            self.getSerialCTL.connect(serialDevice.getControlLines)
+            self.setSerialRTS.connect(serialDevice.setRTS)
+            self.setSerialDTR.connect(serialDevice.setDTR)
+
+            #  create a thread to run the monitor in
+            thread = QThread(self)
+
+            #  move the monitor to it
+            serialDevice.moveToThread(thread)
+
+            #  connect thread specific signals and slots - this facilitates starting,
+            #  stopping, and deletion of the threads.
+            thread.started.connect(serialDevice.startPolling)
+            serialDevice.SerialPortClosed.connect(thread.quit)
+            thread.finished.connect(self.removeDevice)
+            thread.finished.connect(thread.deleteLater)
+
+            #  store references to our new objects
+            self.threads[thread] = serialDevice
+            self.devices[device]['thread'] = thread
+
+            #  and finally, start the thread - this will also start polling
+            thread.start()
 
 
     def stopMonitoring(self, devices=None):
         """
-          Stop monitoring. The serial ports are closed and the monitoring threads
-          are stopped.
+          Stop monitoring emits the ``stopDevice`` signal which informs the
+          SerialDevice thread to stop polling, flush and close the serial port, and
+          terminate the thread.
 
           You can stop specific devices by setting the `devices` keyword to a list
-          of device(s) you want to stop.
+          of device(s) you want to stop. If you do not specify any devices, all
+          devices will be stopped.
         """
-
-        deviceErrors = {}
 
         if devices == None:
             #  no devices specified - get a list of all devices
-            devices = self.__devices.keys()
+            devices = list(self.devices.keys())
+        elif (type(devices) is str):
+            #  device was specified as a string, put it in a list
+            devices = [devices]
 
-        for device in devices:
-            #  try to stop each device in the list
-            if self.__devices[device].isRunning():
-                try:
-                    self.__devices[device].stopMonitor()
-                except Exception, e:
-                    deviceErrors[device] = e
-
-        if (len(deviceErrors) > 0):
-            #  pass the error up the stack
-            raise QSerialPortError(deviceErrors)
+        self.stopDevice.emit(devices)
 
 
     def whosMonitoring(self):
         """Returns a list of currently running serial acquisition threads"""
         runningDevices = []
-        for device in self.__devices.iteritems():
-            if device[1].isRunning():
+        for device in self.devices.iter():
+            #  assume if thread is populated, then the thread is running
+            if device['thread']:
                 runningDevices.append(device[0])
 
         return runningDevices
@@ -253,16 +296,16 @@ class SerialMonitor(QObject):
         """Set the DTR line on the specified serial port
 
         """
-        if deviceName in self.__devices:
-            self.emit(SIGNAL("setSerialDTR"), deviceName, state)
+        if deviceName in self.devices:
+            self.setSerialDTR.emit(deviceName, state)
 
 
     def setRTS(self, deviceName, state):
         """Set the RTS line on the specified serial port
 
         """
-        if deviceName in self.__devices:
-            self.emit(SIGNAL("setSerialRTS"), deviceName, state)
+        if deviceName in self.devices:
+            self.setSerialRTS.emit(deviceName, state)
 
 
     def txData(self, deviceName, data):
@@ -272,8 +315,8 @@ class SerialMonitor(QObject):
         """
 
         #  send the txSerialData signal to the monitoring threads
-        if deviceName in self.__devices:
-            self.emit(SIGNAL("txSerialData"), deviceName, data)
+        if deviceName in self.devices:
+            self.txSerialData.emit(deviceName, data)
 
 
     def getControlLines(self, deviceName):
@@ -281,27 +324,67 @@ class SerialMonitor(QObject):
             Request the status of the DCE control lines. The data is returned as a
             list of booleans ordered as [CTS, DSR, RI, CD].
         """
-        self.emit(SIGNAL("getControlLines"), deviceName)
+        self.getSerialCTL.emit(deviceName)
 
 
-    def __rxData(self, deviceName, data, err):
-        # consolodates the signals from the individual monitoring threads and re-emit
-        self.emit(SIGNAL("SerialDataReceived"), deviceName, data, err)
+    @pyqtSlot(str, str, object)
+    def dataReceived(self, deviceName, data, err):
+        # consolidates the RX data signals from the individual monitoring threads and re-emit
+        self.SerialDataReceived.emit(deviceName, data, err)
 
 
-    def __controlData(self, deviceName, line, state):
-        # consolodates the signals from the individual monitoring threads and re-emit
-        self.emit(SIGNAL("SerialControlChanged"), deviceName, line, state)
+    @pyqtSlot(str, list)
+    def controlDataState(self, deviceName, state_list):
+        # consolidates the signals from the individual monitoring threads and re-emit
+        state = {'CTS':state_list[0],
+                 'DSR':state_list[1],
+                 'RI':state_list[2],
+                 'CD':state_list[3]}
+        self.SerialControlChanged.emit(deviceName, state)
 
 
-    def __controlDataState(self, deviceName, state):
-        # consolodates the signals from the individual monitoring threads and re-emit
-        self.emit(SIGNAL("SerialControlState"), deviceName, state)
+    @pyqtSlot()
+    def controlDataChanged(self, deviceName, line, state):
+        # consolidates the signals from the individual monitoring threads and re-emit
+        self.SerialControlState.emit(deviceName, state)
+
+
+    @pyqtSlot(str, object)
+    def serialError(self, deviceName, errorObj):
+        # consolidates the error signals from the individual monitoring threads and raises
+        #  them in the main application thread.
+        raise errorObj
+
+
+    def removeDevice(self):
+        """
+          removeDevice is called when a SerialMonitorThread thread instance finishes
+          running and emits the "finished" signal. This method cleans up references
+          to that thread and SerialMonitorThread object.
+
+          This method should not be called directly.
+        """
+
+        #  get a reference to the thread that is shutting down
+        thread = QObject.sender(self)
+
+        #  get the name of the device that is shutting down
+        deviceName = self.threads[thread].deviceName
+
+        #print('Stopping ' + deviceName, '   Thread:', thread)
+
+        #  update the thread
+        self.devices[deviceName]['thread'] = None
+
+        #  delete the reference to the thread
+        del self.threads[thread]
+
+
 
 #
 #  SerialMonitor Exception class
 #
-class QSerialError(Exception):
+class SerialError(Exception):
     def __init__(self, msg, parent=None):
         self.errText = msg
         self.parent = parent
@@ -310,7 +393,7 @@ class QSerialError(Exception):
         return repr(self.errText)
 
 
-class QSerialPortError(Exception):
+class SerialPortError(Exception):
     def __init__(self, devices, parent=None):
         self.devices = devices
         self.devNames = devices.keys()

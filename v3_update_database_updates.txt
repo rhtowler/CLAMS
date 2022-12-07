@@ -1,0 +1,7 @@
+This file contains notes regarding changes to the database during the Python3/Qt6
+version 3 upgrade.
+
+
+add allowEventChangeWhileProcessing parameter to application_configuration table. This
+is a true/false field that determines if a new event can be started when other workstations
+are open. MACE runs with this set to True, but the default should be False

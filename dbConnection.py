@@ -6,8 +6,8 @@ Created on Mon Oct 27 12:07:55 2014
 """
 
 import logging
-from PyQt4 import QtCore
-from PyQt4 import QtSql
+from PyQt5 import QtCore
+from PyQt5 import QtSql
 
 
 class SQLError(Exception):
@@ -15,7 +15,7 @@ class SQLError(Exception):
     def __init__(self, query):
 
         self.QSqlQuery = query
-        self.error = self.__stripErrorChars(query.lastError().text().toAscii())
+        self.error = self.__stripErrorChars(query.lastError().text())
         self.SqlText = str(query.lastQuery())
 
     def __str__(self):
@@ -29,7 +29,7 @@ class SQLError(Exception):
         '''
         msg = []
         for s in rawMsg:
-            if (s != '\x00'):
+            if (s != "\x00"):
                 msg.append(s)
             else:
                 break
@@ -42,7 +42,7 @@ class DBError(Exception):
     def __init__(self, db):
 
         self.db = db
-        self.error = self.__stripErrorChars(db.lastError().text().toAscii())
+        self.error = self.__stripErrorChars(db.lastError().text())
 
     def __str__(self):
 
@@ -111,26 +111,26 @@ class dbQueryResults:
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
 
         if self.query.next():
             #  build the list of items to return
             for i in range(self.nColumns):
                 #  NULL values are returned as None
-                if (self.query.value(i).isNull()):
+                if (self.query.isNull(i)):
                     val = None
                 #  handle DateTime conversion explicitly
                 elif (self.columnTypes[i] == 'DateTime'):
-                    val = str(self.query.value(i).toDateTime().toString(self.dateFormat))
+                    val = self.query.value(i).toString(self.dateFormat)
+                #  deal with PyQt4/PyQt5 differences in returning integer values as "floats"
+                elif (self.columnTypes[i] == 'Double'):
+                    if (self.query.value(i).is_integer()):
+                        val = str(int(self.query.value(i)))
+                    else:
+                        val = str(self.query.value(i))
                 else:
-                    try:
                         #  try a direct conversion to python string
-                        val = str(self.query.value(i).toString())
-                    except:
-                        #  if this fails, it typically is a result of unicode replacement chars
-                        #  in the string. Replace them with "'". This is not ideal but that seems to
-                        #  be the only character that I am running into that is treated like this.
-                        val = str(unicode(self.query.value(i).toString()).replace(u"\uFFFD", "'"))
+                        val = str(self.query.value(i))
                 self.rowList[i] = val
 
             return self.rowList
@@ -144,13 +144,13 @@ class dbQueryResults:
             #  build the list of items to return
             for i in range(self.nColumns):
                 #  NULL values are returned as None
-                if (self.query.value(i).isNull()):
+                if (self.query.isNull(i)):
                     val = None
                 #  handle DateTime conversion explicitly
                 elif (self.columnTypes[i] == 'DateTime'):
-                    val = str(self.query.value(i).toDateTime().toString(self.dateFormat))
+                    val = self.query.value(i).toString(self.dateFormat)
                 else:
-                    val = str(self.query.value(i).toString())
+                    val = str(self.query.value(i))
                 self.rowList[i] = val
         else:
             #  nothing to return as the query is empty
@@ -165,13 +165,13 @@ class dbQueryResults:
             #  build the list of items to return
             for i in range(self.nColumns):
                 #  NULL values are returned as None
-                if (self.query.value(i).isNull()):
+                if (self.query.isNull(i)):
                     val = None
                 #  handle DateTime conversion explicitly
                 elif (self.columnTypes[i] == 'DateTime'):
-                    val = str(self.query.value(i).toDateTime().toString(self.dateFormat))
+                    val = self.query.value(i).toString(self.dateFormat)
                 else:
-                    val = str(self.query.value(i).toString())
+                    val = str(self.query.value(i))
                 self.rowList[i] = val
         else:
             #  nothing to return as the query is empty
@@ -200,11 +200,10 @@ class dbConnection:
 
                  Note that when using the ODBC driver with NON-Oracle
                  databases you need to set the isOracle keyword to 'False'
-
     '''
 
     def __init__(self, source, username, password, label='db', driver='QODBC3',
-            isOracle=True):
+            isOracle=True, hostname=None):
 
 
         #  force isOracle keyword for drivers that are obviously *not* oracle
@@ -221,6 +220,10 @@ class dbConnection:
         self.db.setDatabaseName(source)
         self.db.setUserName(username)
         self.db.setPassword(password)
+        if hostname:
+            self.db.setHostName(hostname)
+            self.db.setPort(5432)
+
         self.label = label
         self.lastError = ''
         if (isOracle):
@@ -231,7 +234,6 @@ class dbConnection:
             #  non-Oracle databases do not support this NLS business
             self.NLS_DATE_FORMAT = None
             self.NLS_TIMESTAMP_FORMAT = None
-
         self.qtDateFormatString = None
         self.loggingEnabled = False
         self.logger = None
@@ -449,7 +451,7 @@ class dbConnection:
             return
 
         #  get the bind value names
-        bindNames = data.keys()
+        bindNames = list(data.keys())
 
         #  bind the data
         for name in bindNames:
@@ -467,8 +469,7 @@ class dbConnection:
         #  check if we had a problem
         if (not ok):
             #  ooops, there was a problem - report the error
-            query  = preparedQuery.lastQuery()
-            raise SQLError(query)
+            raise SQLError(preparedQuery)
 
 
     def dbOpen(self):
@@ -517,21 +518,21 @@ class dbConnection:
             PostgreSQL: While navigating the query results in forward-only mode,
             do not execute any other SQL command on the same database connection.
             This will cause the query results to be lost.
-            
+
             Calling dbQueryResults.first() multiple times for the same query will
             result in an error when forwardOnly=True. Good coding practices can
             eliminate the need of calling dbQueryResults.first() multiple times so
             this isn't an excuse for setting forwardOnly=False.
-            
+
         By default, this method returns a dbQueryResults instance which you can
-        use to iterate through the results. Set the asDict keyword to True to 
+        use to iterate through the results. Set the asDict keyword to True to
         return a dictionary, keyed by query column names that contains the full
         results of the query. This results in the entire query data set being
         read into RAM and may cause issues with very large data sets. Use your
         brain.
         '''
 
-        #  if returning a dict of results force forwardOnly for effi
+        #  if returning a dict of results force forwardOnly for efficiency
         if (asDict):
             forwardOnly=True
 
@@ -552,19 +553,19 @@ class dbConnection:
                 types.append(self.__getQVariantType(dbRecord.field(i)))
 
         if (asDict):
-            
+
             #  get an instance of dbQueryREsults
             dbq = dbQueryResults(query, columns, types,
                         dateFormatString=self.qtDateFormatString)
-            
+
             #  create the return dictionary with keys mapped to column names
             result = {k:[] for k in columns}
-            
+
             #  populate the dict with data returned from the query
             for vals in dbq:
-                for col in columns:
-                    result[col].append(vals[columns.index(col)])
-            
+                for i in range(dbq.nColumns):
+                    result[columns[i]].append(vals[i])
+
             #  return the dict
             return result
 
@@ -596,7 +597,7 @@ class dbConnection:
         #  check if we had a problem
         if (not ok):
             #  ooops, there was a problem - report the error
-             raise SQLError(query)
+            raise SQLError(query)
 
         #  check if we're logging DML changes to the database and log if so
         if self.loggingEnabled:

@@ -1,12 +1,50 @@
-'''
-    The CLAMS MACE Trawl event dialog. This form provides the MACE trawl event form and
-    actions for CLAMS.
-'''
+# coding=utf-8
 
-#  import
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from PyQt4 import QtSql
+#     National Oceanic and Atmospheric Administration (NOAA)
+#     Alaskan Fisheries Science Center (AFSC)
+#     Resource Assessment and Conservation Engineering (RACE)
+#     Midwater Assessment and Conservation Engineering (MACE)
+
+#  THIS SOFTWARE AND ITS DOCUMENTATION ARE CONSIDERED TO BE IN THE PUBLIC DOMAIN
+#  AND THUS ARE AVAILABLE FOR UNRESTRICTED PUBLIC USE. THEY ARE FURNISHED "AS
+#  IS."  THE AUTHORS, THE UNITED STATES GOVERNMENT, ITS INSTRUMENTALITIES,
+#  OFFICERS, EMPLOYEES, AND AGENTS MAKE NO WARRANTY, EXPRESS OR IMPLIED,
+#  AS TO THE USEFULNESS OF THE SOFTWARE AND DOCUMENTATION FOR ANY PURPOSE.
+#  THEY ASSUME NO RESPONSIBILITY (1) FOR THE USE OF THE SOFTWARE AND
+#  DOCUMENTATION; OR (2) TO PROVIDE TECHNICAL SUPPORT TO USERS.
+
+"""
+.. module:: MACETrawlEvent
+
+    :synopsis: MACETrawlEvent implements the trawl event form used by the
+               MACE group to collect metadata associated with the fishing
+               operation. The form and code define the data to be collected
+               and how and when it is collected.
+               
+               Events that retain catch (such as a trawl event) are the first
+               step in collecting data with CLAMS.
+               
+| Developed by:  Rick Towler   <rick.towler@noaa.gov>
+|                Kresimir Williams   <kresimir.williams@noaa.gov>
+| National Oceanic and Atmospheric Administration (NOAA)
+| National Marine Fisheries Service (NMFS)
+| Alaska Fisheries Science Center (AFSC)
+| Midwater Assesment and Conservation Engineering Group (MACE)
+|
+| Author:
+|       Rick Towler   <rick.towler@noaa.gov>
+|       Kresimir Williams   <kresimir.williams@noaa.gov>
+| Maintained by:
+|       Rick Towler   <rick.towler@noaa.gov>
+|       Kresimir Williams   <kresimir.williams@noaa.gov>
+|       Mike Levine   <mike.levine@noaa.gov>
+|       Nathan Lauffenburger   <nathan.lauffenburger@noaa.gov>
+"""
+
+
+from PyQt6.QtCore import *
+from PyQt6.QtGui import *
+from PyQt6.QtWidgets import *
 from ui.xga import ui_MACETrawlEvent
 import numpad
 import keypad
@@ -16,18 +54,22 @@ import netdlg
 import timedlg
 from acquisition.scs import QSCSClient
 
+
 class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
 
     def __init__(self, parent=None):
         '''
-            The CLAMS Trawl event dialog initialization method. Gets basic information
-            and sets up the haul form
+            The CLAMS Trawl event dialog initialization method. This method will
+            set some default attributes, connect signals, and perform some other
+            basic setup tasks. It then fires off a single shot timer to continue
+            init in a separate method.
         '''
 
         #  call superclass init methods and GUI form setup method
-        super(MACETrawlEvent, self).__init__(parent)
+        super().__init__(parent)
         self.setupUi(self)
+        
         self.setAttribute(Qt.WA_DeleteOnClose)
 
         #  copy some properties from our parent
@@ -36,7 +78,6 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         self.activeEvent=parent.activeEvent
         self.survey=parent.survey
         self.ship=parent.ship
-        self.backLogger=parent.backLogger
         self.settings=parent.settings
         self.errorSounds=parent.errorSounds
         self.errorIcons=parent.errorIcons
@@ -46,29 +87,32 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         self.testing=parent.testing
         self.reloaded = parent.reloaded
 
-        #  setup reoccuring dialogs
+        #  setup reoccurring dialogs
         self.numpad = numpad.NumPad(self)
         self.message = messagedlg.MessageDlg(self)
         self.timeDlg = timedlg.TimeDlg(self)
         self.timeDlg.enableGetTimeButton(False)
-        self.netdlg=netdlg.NetDlg(self)
+        self.netdlg = netdlg.NetDlg(self)
 
         #  define default variable values
-        self.fishingFlag=False
-        self.recording=False
+        self.fishingFlag = False
+        self.recording = False
         self.abort = False
-        self.displayMeasurements=['Latitude', 'Longitude', 'BottomDepth']
+        self.displayMeasurements = ['Latitude', 'Longitude', 'BottomDepth']
         self.gearKey = []
         self.comment = ""
         self.incomplete = False
-        self.gaCBList = [self.accessBox1, self.accessBox2, self.accessBox3, self.accessBox4]
-        self.gaLabelList = [self.accessLabel1, self.accessLabel2, self.accessLabel3, self.accessLabel4]
-        self.buttons=[self.btn1,self.btn2,self.btn3,self.btn4,self.btn5,self.btn6,self.btn7,self.btn8,self.btn9]
+        self.gaCBList = [self.accessBox1, self.accessBox2, self.accessBox3,
+                self.accessBox4]
+        self.gaLabelList = [self.accessLabel1, self.accessLabel2,
+                self.accessLabel3, self.accessLabel4]
+        self.buttons=[self.btn1,self.btn2,self.btn3,self.btn4,self.btn5
+                ,self.btn6,self.btn7,self.btn8,self.btn9]
         self.eventTimer=QTime()
         self.recordStream=False
         self.dispVector=['','','']
         self.SCSPollRate = 1
-        self.reloaded=False
+        self.reloaded = False
         self.scsRetries = 0
 
         #  max number of seconds data extracted from haul_stream_data during event button edits
@@ -93,28 +137,29 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         self.yellow.setColor(QPalette.ButtonText,QColor(180, 180, 0))
         self.haulLabel.setText(self.activeEvent)
 
-        #  create an instance of the SCS client
-        self.scsClient = QSCSClient.QSCSClient(str(self.settings[QString('SCSHost')]),
-                str(self.settings[QString('SCSPort')]))
+#TODO: UPDATE SCS CLIENT
+        #  create an instance of the SCS client and connect the signals
+        self.scsClient = QSCSClient.QSCSClient(self.settings['SCSHost'],
+                self.settings['SCSPort'])
+        self.scsClient.SCSGetReceived.connect(self.writeStream)
+        self.scsClient.SCSError.connect(self.errorSCS)
 
         #  attempt to connect to the SCS server
         if not self.testing:
             self.setupSCS()
 
-        #  connect signals...
-        self.connect(self.gearBox, SIGNAL("activated(int)"), self.getOptions)
-        self.connect(self.netDimBtn, SIGNAL("clicked()"), self.getNetDims)
-        self.connect(self.transBtn, SIGNAL("clicked()"), self.getTransect)
-        self.connect(self.stratumBtn, SIGNAL("clicked()"), self.getStratum)
-        self.connect(self.commentBtn, SIGNAL("clicked()"), self.getComment)
-        self.connect(self.doneBtn, SIGNAL("clicked()"), self.goExit)
-        self.connect(self.scsClient, SIGNAL("SCSGetReceived"), self.writeStream)
-        self.connect(self.scsClient, SIGNAL("SCSError"), self.errorSCS)
-        self.connect(self.scsClient, SIGNAL("SCSSensorDescription"), self.receiveSCSDescriptions)
-        self.connect(self.perfCheckBox, SIGNAL("stateChanged(int)"), self.getFullPerfList)
+        #  connect the form's signals
+        self.gearBox.activated[int].connect(self.getOptions)
+        self.perfCheckBox.stateChanged[int].connect(self.getFullPerfList)
+        self.netDimBtn.clicked.connect(self.getNetDims)
+        self.transBtn.clicked.connect(self.getTransect)
+        self.stratumBtn.clicked.connect(self.getStratum)
+        self.commentBtn.clicked.connect(self.getComment)
+        self.doneBtn.clicked.connect(self.goExit)
 
+        #  now connect the event action button signals
         for btn in self.buttons:
-            self.connect(btn, SIGNAL("clicked()"), self.getEventData)
+            btn.clicked.connect(self.getEventData)
 
         # setup table
         self.dataTable.verticalHeader().setVisible(False)
@@ -125,31 +170,36 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         self.statusBar = QStatusBar(self)
         self.statusLayout.addWidget(self.statusBar)
 
-
         #  set up the event duration timer
         self.timer = QTimer(self)
-        self.connect(self.timer, SIGNAL("timeout()"), self.displayTime)
+        self.timer.timeout.connect(self.displayTime)
 
         #  set up the initialization timer
         initTimer = QTimer(self)
         initTimer.setSingleShot(True)
-        self.connect(initTimer, SIGNAL("timeout()"), self.initTrawlEventDialog)
+        initTimer.timeout.connect(self.initTrawlEventDialog)
         initTimer.start(0)
 
 
     def initTrawlEventDialog(self):
+        '''
+        initTrawlEventDialog queries out various parameters and LUT data to populate
+        the trawl event form with data
+        '''
 
         #  query out the "slow" and "fast" SCS write to database rates. These rates do not affect polling
         #  only the rate at which data is written to event_stream_data. This is done to limit the amount
         #  of data that is written to this table as it is becoming a query performance issue.
-        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".application_configuration " +
-                "WHERE ship=" + self.ship + " AND survey=" + self.survey + " AND parameter='EventStreamEQHBLogInt'")
+        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema +
+                ".application_configuration " + "WHERE ship=" + self.ship + " AND survey=" +
+                self.survey + " AND parameter='EventStreamEQHBLogInt'")
         if query.first():
             (val,ok) = query.value(0).toInt()
             if ok:
                 self.streamEQHBLogInterval = val
-        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".application_configuration " +
-                "WHERE ship=" + self.ship + " AND survey=" + self.survey + " AND parameter='EventStreamPreEQLogInt'")
+        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema +
+                ".application_configuration WHERE ship=" + self.ship + 
+                " AND survey=" + self.survey + " AND parameter='EventStreamPreEQLogInt'")
         if query.first():
             (val,ok) = query.value(0).toInt()
             if ok:
@@ -211,7 +261,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         #  present the sci selection dialog
         self.listDialog = listseldialog.ListSelDialog(self.sciList, self)
         self.listDialog.label.setText(dialogMessage)
-        if self.listDialog.exec_():
+        if self.listDialog.exec():
             #  sci selected
             sciName = self.listDialog.itemList.currentItem().text()
 
@@ -226,7 +276,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         self.netdlg.reloadData
 
         #  display the dialog
-        self.netdlg.exec_()
+        self.netdlg.exec()
 
 
     def reloadData(self):
@@ -447,7 +497,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                     "The number of gear accessories for this gear type is greater than the number of gear accessory " +
                     "combo boxes on this form! You will not see all of the gear accessories. Change the form or remove " +
                     "gear accessories from the gear_options table for this gear.",'info')
-                self.message.exec_()
+                self.message.exec()
                 break
             #  set the accessory type label
             self.accessories.append(query.value(0).toString())
@@ -670,7 +720,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                     self.timeDlg.setTime(str(self.dataTable.item(ind, 0).text()))
 
             #  show the time select dialog so the user can change the time
-            if self.timeDlg.exec_():
+            if self.timeDlg.exec():
                 #  get the new time from the dialog
                 time = self.timeDlg.time
 
@@ -848,14 +898,14 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
     def getTransect(self):
         self.numpad.msgLabel.setText("Enter transect")
-        if not self.numpad.exec_():
+        if not self.numpad.exec():
             return
         self.transBtn.setText(self.numpad.value)
 
 
     def getStratum(self):
         self.numpad.msgLabel.setText("Enter Stratum")
-        if not self.numpad.exec_():
+        if not self.numpad.exec():
             return
         self.stratumBtn.setText(self.numpad.value)
 
@@ -895,7 +945,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
             self.message.setMessage(self.errorIcons[0],self.errorSounds[0], "Failed to connect to " +
                 "SCS server - check IP and port settings in application configuration!" +
                 "If you continue, there will be NO SCS DATA LOGGED during the event.", 'info')
-            self.message.exec_()
+            self.message.exec()
             return
 
         #  request the sensor descriptions
@@ -1199,7 +1249,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
     def getComment(self):
         keyDialog = keypad.KeyPad(self.comment, self)
-        keyDialog.exec_()
+        keyDialog.exec()
         if keyDialog.okFlag:
             #  get the text and convert to plain text
             self.commentstr=keyDialog.dispEdit.toPlainText()
@@ -1269,7 +1319,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
             messageText = ('It appears that your event form is incomplete.\nThe following fields are missing:\n' +
                     '     \n'.join(incompleteElements) + '\n\nAre you SURE you want to exit without completing it?')
             self.message.setMessage(self.errorIcons[0],self.errorSounds[0],messageText,'choice')
-            ok = self.message.exec_()
+            ok = self.message.exec()
 
             if (ok):
                 #  the user disagrees the form is incomplete
@@ -1310,7 +1360,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
             messageText = ('You have not started your event. If you exit now, no event will be created. ' +
                     '\n\nAre you sure you want to exit?')
             self.message.setMessage(self.errorIcons[0],self.errorSounds[0],messageText,'choice')
-            ok = self.message.exec_()
+            ok = self.message.exec()
             if (ok):
                 #  user has chosen to exit
                 self.abort = True
