@@ -5,3 +5,7 @@ version 3 upgrade.
 add allowEventChangeWhileProcessing parameter to application_configuration table. This
 is a true/false field that determines if a new event can be started when other workstations
 are open. MACE runs with this set to True, but the default should be False
+
+gear_accessory_types must be updated to have the parameter_type values. Currently the
+parameter_types are for some reason in the description column. The new MACETrawlEvent
+form correctly queries the parameter_type column. MACE's database has already been updated.

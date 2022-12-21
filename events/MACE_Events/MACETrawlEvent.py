@@ -17,7 +17,7 @@
 .. module:: MACETrawlEvent
 
     :synopsis: MACETrawlEvent implements the trawl event form used by the
-               MACE group to collect metadata associated with the fishing
+               MACE group to collect metadata associated with a fishing
                operation. The form and code define the data to be collected
                and how and when it is collected.
                
@@ -163,12 +163,18 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
         # setup table
         self.dataTable.verticalHeader().setVisible(False)
-        for i in range(4):
-            self.dataTable.setColumnWidth(i, self.dataTable.width()/4)
+        
+        #  this should make the columns resize based on the widget width
+        self.dataTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+#        for i in range(4):
+#            self.dataTable.setColumnWidth(i, self.dataTable.width()/4)
 
         #  create a statusbar
         self.statusBar = QStatusBar(self)
         self.statusLayout.addWidget(self.statusBar)
+
+        #  disable the comment button until the event is started
+        self.commentBtn.setEnabled(False)
 
         #  set up the event duration timer
         self.timer = QTimer(self)
@@ -187,36 +193,40 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         the trawl event form with data
         '''
 
-        #  query out the "slow" and "fast" SCS write to database rates. These rates do not affect polling
-        #  only the rate at which data is written to event_stream_data. This is done to limit the amount
-        #  of data that is written to this table as it is becoming a query performance issue.
-        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema +
-                ".application_configuration " + "WHERE ship=" + self.ship + " AND survey=" +
-                self.survey + " AND parameter='EventStreamEQHBLogInt'")
-        if query.first():
-            (val,ok) = query.value(0).toInt()
-            if ok:
-                self.streamEQHBLogInterval = val
-        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema +
-                ".application_configuration WHERE ship=" + self.ship + 
-                " AND survey=" + self.survey + " AND parameter='EventStreamPreEQLogInt'")
-        if query.first():
-            (val,ok) = query.value(0).toInt()
-            if ok:
-                self.self.streamSlowLogInterval = val
+        #  query out the "slow" and "fast" SCS write rates. We write SCS data to the
+        #  event_stream_data table at different rates depending on where we are in
+        #  the event. We write faster between EQ and Haulback, and slower before EQ
+        #  and after Haulback.
+        sql = ("SELECT parameter_value FROM " + self.schema + ".application_configuration " +
+                "WHERE ship=" + self.ship + " AND survey=" + self.survey +
+                " AND parameter='EventStreamEQHBLogInt'")
+        query = self.db.dbQuery(sql)
+        val, = query.first()
+        if val:
+            self.streamEQHBLogInterval = val
+
+        sql = ("SELECT parameter_value FROM " + self.schema + ".application_configuration " +
+                "WHERE ship=" + self.ship + " AND survey=" + self.survey +
+                " AND parameter='EventStreamPreEQLogInt'")
+        query = self.db.dbQuery(sql)
+        val, = query.first()
+        if val:
+            self.self.streamSlowLogInterval = val
 
         #  populate the gear combobox
         self.gearBox.setEnabled(True)
-        query = QtSql.QSqlQuery("SELECT gear FROM " + self.schema + ".gear WHERE active=1 " +
-                "ORDER BY gear_gui_order", self.db)
-        while query.next():
-            self.gearBox.addItem(query.value(0).toString())
+        sql = ("SELECT gear FROM " + self.schema + ".gear WHERE active=1 " +
+                "ORDER BY gear_gui_order")
+        query = self.db.dbQuery(sql)
+        for gear, in query:
+            self.gearBox.addItem(gear)
         self.gearBox.setCurrentIndex(-1)
 
         # if this is a restart or continuation of an already started event, reload previously collected data
-        query=QtSql.QSqlQuery("SELECT * FROM " + self.schema + ".events WHERE ship=" + self.ship +
+        sql = ("SELECT event_id FROM " + self.schema + ".events WHERE ship=" + self.ship +
                 " AND survey=" + self.survey + " AND event_id=" + self.activeEvent)
-        if query.first():
+        event_id, = query.first()
+        if event_id:
             #  this is a restart so reload any existing data
             self.reloaded = True
             self.reloadData()
@@ -232,17 +242,6 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                 self.abort = True
                 self.close()
 
-#        # update the form with the marine mammal interaction status
-#        if self.mammalStatus=='Y':
-#            self.marMammalBox.setChecked(True)
-#        else:
-#            self.marMammalBox.setChecked(False)
-#        if self.birdStatus=='Y':
-#            self.seaBirdBox.setChecked(True)
-#        else:
-#            self.seaBirdBox.setChecked(False)
-
-
 
     def getScientistName(self, dialogMessage):
         '''
@@ -252,12 +251,14 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         
         sciName = None
         
-        query=QtSql.QSqlQuery("SELECT personnel.scientist FROM " + self.schema + ".personnel WHERE " +
-                "personnel.active=1 ORDER BY personnel.scientist", self.db)
-        # populate scientist list
-        self.sciList=[]
-        while query.next():
-            self.sciList.append(query.value(0).toString())
+        #  populate scientist list
+        sql = ("SELECT scientist FROM " + self.schema + ".personnel WHERE " +
+                "active=1 ORDER BY scientist")
+        query = self.db.dbQuery(sql)
+        self.sciList = []
+        for scientist, in query:
+            self.sciList.append(scientist)
+        
         #  present the sci selection dialog
         self.listDialog = listseldialog.ListSelDialog(self.sciList, self)
         self.listDialog.label.setText(dialogMessage)
@@ -270,7 +271,8 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
     def getNetDims(self):
         """
-        getNetDims is called when the user hits EQ or Haulback or the NetDims button
+        getNetDims is called when the user hits EQ or Haulback or the NetDims button. This presents
+        a simple dialog for entering the net opening width and hight and the amount of wire out.
         """
         #  reload the net dimension values
         self.netdlg.reloadData
@@ -284,85 +286,98 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         reloadData populates the form with whatever data exists in the database for this event
         """
         #populate gear type, scientist
-        queryOld = QtSql.QSqlQuery("SELECT gear, event_type, performance_code, scientist, comments " +
-                    "FROM " + self.schema + ".events WHERE ship=" +self.ship +
-                    " AND survey=" + self.survey + " AND event_id=" + self.activeEvent, self.db)
-        # get values
-        queryOld.first()
+        sql = ("SELECT gear, event_type, performance_code, scientist, comments " +
+                "FROM " + self.schema + ".events WHERE ship=" +self.ship +
+                " AND survey=" + self.survey + " AND event_id=" + self.activeEvent)
+        query = self.db.dbQuery(sql)
+        self.gear, ev_type, perf_code, self.scientist, self.comment = query.first()
+        self.sciLabel.setText(self.scientist)
 
-        # set event_id gear type
-        ind = self.gearBox.findText(queryOld.value(0).toString())
-        self.gear=queryOld.value(0).toString()
+        # set gear type combobox
+        ind = self.gearBox.findText(self.gear)
         self.gearBox.setCurrentIndex(ind)
-        self.scientist=queryOld.value(3).toString()
-        self.comment=queryOld.value(4).toString()
 
         #populate lists
         self.getOptions()
 
-        #set up selections
-        if queryOld.value(1).toString() in self.typeCode:
-            ind=self.typeCode.index(queryOld.value(1).toString())
+        #set the event type
+        if ev_type in self.typeCode:
+            ind = self.typeCode.index(ev_type)
         else:
-            ind=-1
+            ind = -1
         self.typeBox.setCurrentIndex(ind)
-        self.sciLabel.setText(self.scientist)
-
-        # get from short list, otherwise, get full list
-        if queryOld.value(2).toString() in self.perfCode:
-            ind=self.perfCode.index(queryOld.value(2).toString())
+        
+        #  update the performance code - first check if this perf code is
+        #  in the short list
+        if perf_code in self.perfCode:
+            #  yes it is, get the index
+            ind = self.perfCode.index(perf_code)
         else:
+            #  not in short perf code list, check in the full list
             self.perfCheckBox.setCheckState(Qt.Checked)
             self.getFullPerfList()
-            ind=-1
-            if queryOld.value(2).toString() in self.perfCode:
-                ind=self.perfCode.index(queryOld.value(2).toString())
+            ind = -1
+            if perf_code in self.perfCode:
+                ind = self.perfCode.index(perf_code)
         self.perfBox.setCurrentIndex(ind)
 
-        # gear accessories
+        #  gear accessories
         for i in range(len(self.accessories)):
-            query = QtSql.QSqlQuery("SELECT gear_accessory_option FROM " + self.schema +
+            sql = ("SELECT gear_accessory_option FROM " + self.schema +
                     ".gear_accessory WHERE ship=" + self.ship + " AND survey=" +
-                    self.survey + " AND event_id=" + self.activeEvent + " AND gear_accessory='" +
-                    self.accessories[i]+"'")
-            if query.first():
-                self.gaCBList[i].setCurrentIndex(self.gaCBList[i].findText(query.value(0).toString()))
+                    self.survey + " AND event_id=" + self.activeEvent +
+                    " AND gear_accessory='" + self.accessories[i]+"'")
+            query = self.db.dbQuery(sql)
+            gear_opt, = query.first()
+            if gear_opt:
+                self.gaCBList[i].setCurrentIndex(self.gaCBList[i].findText(gear_opt))
 
-        #get transect
-        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship=" +
+        #  get transect
+        sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship=" +
                 self.ship + " AND survey=" + self.survey + " AND event_id=" + self.activeEvent +
                 " AND event_parameter='Transect'")
-        if query.first():
-            self.transBtn.setText(query.value(0).toString())
+        query = self.db.dbQuery(sql)
+        tansect, = query.first()
+        if tansect:
+            self.transBtn.setText(tansect)
 
-        #get report
-        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+self.ship+
-            " AND survey="+self.survey+" AND event_id="+self.activeEvent+" AND event_parameter='Stratum'")
-        if query.first():
-            self.stratumBtn.setText(query.value(0).toString())
+        #  get stratum/report
+        sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship=" +
+                self.ship + " AND survey=" + self.survey + " AND event_id=" +
+                self.activeEvent + " AND event_parameter='Stratum'")
+        query = self.db.dbQuery(sql)
+        stratum, = query.first()
+        if stratum:
+            self.stratumBtn.setText(stratum)
 
-        # reload mar mammal boxes
-        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+self.ship+
-            " AND survey="+self.survey+" AND event_id="+self.activeEvent+" AND event_parameter='MarineMammalPresent'")
-        query.first()
-        if query.value(0).toString()=='Y':
+#TODO: FIGURE OUT HOW THESE WILL CHANGE WITH NEW OBSERVATION PROTOCOL. These checkboxes
+#      will probably be removed and replaced with a dialog displayed when an event is
+#      scrubbed capturing the reason it was scrubbed.
+        # reload mammal and bird checkboxes
+        sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+
+                self.ship + " AND survey=" + self.survey + " AND event_id=" +
+                self.activeEvent + " AND event_parameter='MarineMammalPresent'")
+        query = self.db.dbQuery(sql)
+        val, = query.first()
+        if val == 'Y':
             self.marMammalBox.setChecked(True)
         else:
             self.marMammalBox.setChecked(False)
-
-        query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+self.ship+
-            " AND survey="+self.survey+" AND event_id="+self.activeEvent+" AND event_parameter='EndangeredSeabirdPresent'")
-        query.first()
-        if query.value(0).toString()=='Y':
+        sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+
+                self.ship + " AND survey=" + self.survey + " AND event_id=" +
+                self.activeEvent + " AND event_parameter='EndangeredSeabirdPresent'")
+        query = self.db.dbQuery(sql)
+        val, = query.first()
+        if val == 'Y':
             self.seaBirdBox.setChecked(True)
         else:
             self.seaBirdBox.setChecked(False)
 
-        # reload buttontimes
+        # reload button times
         row=0
         for btn in self.buttons:
             if btn.text().startsWith('C'):
-                g=str(btn.text())
+                g = str(btn.text())
                 partition='Codend_'+g[1]
                 parameter=[g.split(' ')[1]]
             elif btn.text() in ['EQ', 'Haulback']:
@@ -372,29 +387,33 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                 partition='MainTrawl'
                 parameter=[btn.text()]
 
-            query = QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship=" +
+            sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship=" +
                     self.ship + " AND survey=" + self.survey + " AND event_id=" + self.activeEvent +
                     " AND partition='" + partition + "' AND event_parameter='" + parameter[0] + "'")
-
-            if query.first():
+            query = self.db.dbQuery(sql)
+            val, = query.first()
+            if val:
                 #  update the button's table values
-                self.dataTable.setItem(row, 0, QTableWidgetItem(query.value(0).toString()))
-                self.btnTimes[row]=QDateTime().fromString(query.value(0).toString(), 'MMddyyyy hh:mm:ss.zzz')
-                buttonValues = self.getEventStreamValues(query.value(0).toString(), self.displayMeasurements)
+                self.dataTable.setItem(row, 0, QTableWidgetItem(val))
+                self.btnTimes[row] = QDateTime().fromString(val, 'MMddyyyy hh:mm:ss.zzz')
+                buttonValues = self.getEventStreamValues(val, self.displayMeasurements)
                 self.dataTable.setItem(row, 1, QTableWidgetItem(buttonValues[0]))
                 self.dataTable.setItem(row, 2, QTableWidgetItem(buttonValues[1]))
                 self.dataTable.setItem(row, 3, QTableWidgetItem(buttonValues[2]))
                 self.buttons[row].setPalette(self.green)
-            row+=1
+            row += 1
 
+        #  The event has been started to we disable the gear box and enable comment button
         self.gearBox.setEnabled(False)
         self.recording=True
+        self.commentBtn.setEnabled(True)
 
         #  check if this event has been completed. Completed is defined as having EQ and Haulback
         #  data. Once an event is completed, we only allow editing and do not collect stream data.
         for i in range(len(self.btnTimes)):
             #  check if either EQ or HB buttons are "empty"
-            if self.btnTimes[i]==None and (self.buttons[i].text().endsWith('EQ') or self.buttons[i].text().endsWith('Haulback')):
+            if (self.btnTimes[i] == None and (self.buttons[i].text().endsWith('EQ') or
+                    self.buttons[i].text().endsWith('Haulback'))):
                 #  one of them is not complete - ask if we should consider this a live event
                 reply = QMessageBox.question(self, 'Achtung!',"<font size = 14>This haul was not completed. " +
                         "Is this event still taking place?</font>", QMessageBox.Yes, QMessageBox.No)
@@ -425,7 +444,8 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         #  inform the user that they can only edit and not collect new data.
         nCompletedButtons = 0
         for i in range(len(self.btnTimes)):
-            if self.btnTimes[i] <> None and (self.buttons[i].text().endsWith('EQ') or self.buttons[i].text().endsWith('Haulback')):
+            if (self.btnTimes[i] != None and (self.buttons[i].text().endsWith('EQ') or
+                    self.buttons[i].text().endsWith('Haulback'))):
                 nCompletedButtons = nCompletedButtons + 1
         if nCompletedButtons == 2:
             QMessageBox.information(self, 'Kipaumbele!',"<font size=14>This haul appears to have been completed. " +
@@ -442,31 +462,33 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         self.buttonsGroup.setEnabled(True)
 
         #  populate haul type combo box
-        query = QtSql.QSqlQuery("SELECT " + self.schema + ".event_types.event_type, " + self.schema +
+        self.typeBox.setEnabled(True)
+        self.typeCode = []
+        self.typeBox.clear()
+        sql = ("SELECT " + self.schema + ".event_types.event_type, " + self.schema +
                 ".event_types.description FROM " + self.schema + ".event_types INNER JOIN " + self.schema +
                 ".gear_options ON " + self.schema + ".event_types.event_type = " + self.schema +
                 ".gear_options.event_type WHERE (((" + self.schema + ".gear_options.gear)='" + self.gear + "')) " +
                 "ORDER BY " + self.schema + ".gear_options.haultype_gui_order")
-        self.typeBox.setEnabled(True)
-        self.typeCode = []
-        self.typeBox.clear()
-        while query.next():
-            self.typeBox.addItem(query.value(1).toString())
-            self.typeCode.append(query.value(0).toString())
+        query = self.db.dbQuery(sql)
+        for type_code, description in query:
+            self.typeBox.addItem(description)
+            self.typeCode.append(type_code)
         self.typeBox.setCurrentIndex(-1)
 
         #  populate gear performance combo box
-        query = QtSql.QSqlQuery("SELECT " + self.schema + ".event_performance.performance_code, " + self.schema +
+        self.perfBox.setEnabled(True)
+        self.perfCode=[]
+        self.perfBox.clear()
+        sql = ("SELECT " + self.schema + ".event_performance.performance_code, " + self.schema +
                 ".event_performance.description FROM " + self.schema + ".event_performance INNER JOIN " + self.schema +
                 ".gear_options ON " + self.schema + ".event_performance.performance_code = " + self.schema +
                 ".gear_options.performance_code WHERE " + "(((" + self.schema + ".gear_options.gear)='" +
                 self.gear + "')) ORDER BY " + self.schema + ".gear_options.perf_gui_order")
-        self.perfBox.setEnabled(True)
-        self.perfCode=[]
-        self.perfBox.clear()
-        while query.next():
-            self.perfBox.addItem(query.value(1).toString())
-            self.perfCode.append(query.value(0).toString())
+        query = self.db.dbQuery(sql)
+        for perf_code, description in query:
+            self.perfBox.addItem(description)
+            self.perfCode.append(perf_code)
         self.perfBox.setCurrentIndex(-1)
 
         #  populate the gear accessory combo boxes
@@ -477,15 +499,17 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
             self.gaCBList[i].setEnabled(False)
             self.gaLabelList[i].clear()
         #  get the accessory types for this gear
-        query = QtSql.QSqlQuery("SELECT  " + self.schema + ".gear_accessory_types.gear_accessory, " + self.schema +
-                ".gear_accessory_types.description FROM " + self.schema + ".gear_accessory_types INNER JOIN " +
+        sql = ("SELECT  " + self.schema + ".gear_accessory_types.gear_accessory, " + self.schema +
+                ".gear_accessory_types.parameter_type FROM " + self.schema + ".gear_accessory_types INNER JOIN " +
                 self.schema + ".gear_options ON " + self.schema + ".gear_accessory_types.gear_accessory = " +
                 self.schema + ".gear_options.gear_accessory WHERE ((" + self.schema + ".gear_options.gear)='" +
-                self.gear + "');")
+                self.gear + "')")
         #  loop thru the returned accessory types and populate the combo boxes
         self.accessories = []
         thisAccessoryCB = 0
-        while query.next():
+        
+        query = self.db.dbQuery(sql)
+        for perf_code, param_type in query:
             #  check to make sure we don't have too many accessory types for our form
             if thisAccessoryCB == nAccessoryCB:
                 #  there are more accessory types than combo boxes on our form
@@ -500,64 +524,71 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                 self.message.exec()
                 break
             #  set the accessory type label
-            self.accessories.append(query.value(0).toString())
+            self.accessories.append(perf_code)
             self.gaCBList[thisAccessoryCB].setEnabled(True)
-            self.gaLabelList[thisAccessoryCB].setText(query.value(0).toString())
+            self.gaLabelList[thisAccessoryCB].setText(perf_code)
             #  query the db for the options for this accessory type
-            query1 = QtSql.QSqlQuery("SELECT gear_accessory_option FROM " + self.schema + ".gear_accessory_options WHERE " +
-                                   "gear_accessory='" + self.accessories[thisAccessoryCB] + "' and active = 1;")
+            sql = ("SELECT gear_accessory_option FROM " + self.schema + ".gear_accessory_options WHERE " +
+                    "gear_accessory='" + self.accessories[thisAccessoryCB] + "' and active = 1;")
             #  populate the combo box for this accessory type
-            #self.accessories.sort()
+            optQuery = self.db.dbQuery(sql)
+    
             values=[]
-            while query1.next():
-                if query.value(1).toString()=='int':
-                    values.append(int(query1.value(0).toString()))
-                elif query.value(1).toString()=='float':
-                    values.append(float(query1.value(0).toString()))
+            for gear_acc_opt, in optQuery:
+                if param_type.lower() in ['int', 'integer']:
+                    values.append(int(gear_acc_opt))
+                elif param_type.lower() == 'float':
+                    values.append(float(gear_acc_opt))
                 else:
-                    values.append(query1.value(0).toString())
+                    values.append(gear_acc_opt)
             values.sort()
             for val in values:
                 self.gaCBList[thisAccessoryCB].addItem(str(val))
-            if self.gaCBList[thisAccessoryCB].count()>1:
+            if self.gaCBList[thisAccessoryCB].count() > 1:
                 self.gaCBList[thisAccessoryCB].setCurrentIndex(-1)
             #  increment the combobox/label counter
             thisAccessoryCB += 1
 
-
+        #  setup the action buttons - the action buttons define the steps of
+        #  the event protocol
         maxButtons = len(self.buttons)
         for btn in self.buttons:
             btn.hide()
-        # setup the action buttons
-        query = QtSql.QSqlQuery("SELECT event_parameter FROM " + self.schema + ".gear_options WHERE gear='" +
-                self.gear + "' AND event_parameter IS NOT NULL ORDER BY haultype_gui_order")
+        
         cnt=0
         self.btnTimes=[]
         if not self.reloaded:
-            self.recordStream=True
-        cntx=1
-        while query.next():
+            self.recordStream = True
+        cntx = 1
+        sql = ("SELECT event_parameter FROM " + self.schema + ".gear_options WHERE gear='" +
+                self.gear + "' AND event_parameter IS NOT NULL ORDER BY haultype_gui_order")
+        query = self.db.dbQuery(sql)
+        
+        for event_param, in query:
             self.buttons[cnt].show()
 
             #  check if this is gear with multiple codends (and thus multiple EQs)
-            if query.value(0).toString() in ['EQ','Haulback']:
+            if event_param in ['EQ','Haulback']:
                 if self.gear in ['MOCC','Tucker']:
-                    txt="C" + str(cntx) + " " + query.value(0).toString()
-                    if query.value(0).toString() == 'Haulback':
-                        cntx+=1
+                    txt="C" + str(cntx) + " " + event_param
+                    if event_param == 'Haulback':
+                        cntx += 1
                 else:
-                    txt=query.value(0).toString()
+                    txt = event_param
                 self.buttons[cnt].setPalette(self.red)
             else:
-                txt=query.value(0).toString()
+                txt = event_param
                 self.buttons[cnt].setPalette(self.yellow)
             self.buttons[cnt].setText(txt)
 
             self.btnTimes.append(None)
-            cnt=cnt+1
-        self.endbutton=cnt-1
+            cnt += 1
+        self.endbutton = cnt-1
         self.dataTable.setRowCount(maxButtons)
 
+#TODO: See how row height works with new form that contains layouts and can
+#      be resized and adjust this as needed. Make sure to test on screens with
+#      different dpi and text scaling settings.
         for i in range (maxButtons):
             self.dataTable.setRowHeight(i, 42)
 
@@ -594,25 +625,25 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
         #  query the data from haul_stream data table within our window
         inClause = "'" + "','".join(parameters) + "'"
-        query=QtSql.QSqlQuery("SELECT time_stamp,measurement_type,measurement_value FROM " + self.schema +
+        sql = ("SELECT time_stamp,measurement_type,measurement_value FROM " + self.schema +
                 ".event_stream_data WHERE time_stamp between to_timestamp('"+
                 time.addSecs(-self.streamWindowSeconds).toString('MMddyyyy hh:mm:ss.zzz') +
                 "','MMDDYYYY HH24:MI:SS.FF3') and to_timestamp('"+
                 time.addSecs(self.streamWindowSeconds).toString('MMddyyyy hh:mm:ss.zzz') +
                 "','MMDDYYYY HH24:MI:SS.FF3') AND measurement_type IN (" + inClause + ")")
-
+        query = self.db.dbQuery(sql)
         #  loop thru the returned values
-        while query.next():
+        for timestamp, type, value in query:
             try:
                 #  get the index into our return array
-                i = parameters.index(query.value(1).toString())
+                i = parameters.index(type)
                 #  calculate the time difference between this row and our specified time
-                timeDiff = abs(QDateTime.fromString(query.value(0).toString(), 'MMddyyyy hh:mm:ss.zzz').secsTo(time))
+                timeDiff = abs(QDateTime.fromString(timestamp, 'MMddyyyy hh:mm:ss.zzz').secsTo(time))
                 #  check if this delta is smaller
                 if timeDiff < dt[i]:
                     #  difference is smaller, save this value
                     dt[i] = timeDiff
-                    retVal[i] = query.value(2).toString()
+                    retVal[i] = value
             except:
                 #  this is not the parameter we're looking for
                 pass
@@ -633,17 +664,18 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
             self.timer.start(1000)
             self.gearBox.setEnabled(False)
             self.recording=True
+            self.commentBtn.setEnabled(True)
 
         #  get the index of the event action button that was pressed
         ind=self.buttons.index(self.sender())
 
         # get correct parameter
-        time = str(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss.zzz'))
+        time = QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss.zzz')
         lat = self.dispVector[0]
         lon = self.dispVector[1]
-        g = str(self.buttons[ind].text())
+        button_text = self.buttons[ind].text()
 
-        #  create a list of evet_data parameters we need to record for this button
+        #  create a list of event_data parameters we need to record for this button
         #  This should probably be configured in the database (define a button, then
         #  define the measurements recorded when that button is pressed) but we
         #  aren't doing that. We just hard code the list here so it needs to be
@@ -656,10 +688,10 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         #              the assumptions re: # of parameters and their values. This
         #              needs to be reworked so parameters and matched with values
         #              somehow and the logic doesn't have to be hard coded.
-        if self.buttons[ind].text().endsWith('EQ'):
+        if button_text.endsWith('EQ'):
 
             if self.gear in ['MOCC','Tucker']:
-                partition='Codend_'+g[1]
+                partition='Codend_' + button_text[1]
             else:
                 partition='Codend'
             parameter=['EQ', 'EQLatitude', 'EQLongitude']
@@ -668,9 +700,9 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                 self.SCSLogInterval = self.streamEQHBLogInterval
                 self.netdlg.setTime=time
 
-        elif self.buttons[ind].text().endsWith('Haulback'):
+        elif button_text.endsWith('Haulback'):
             if self.gear in ['MOCC','Tucker']:
-                partition='Codend_'+g[1]
+                partition='Codend_' + button_text[1]
             else:
                 partition='Codend'
             parameter=['Haulback', 'HBLatitude', 'HBLongitude']
@@ -678,20 +710,19 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                 self.fishingFlag=False
                 self.SCSLogInterval = self.streamSlowLogInterval
                 self.netdlg.setTime=time
-        elif self.buttons[ind].text() == 'ProtectedSppObsStart':
+        elif button_text == 'ProtectedSppObsStart':
             #  create parameter list for the protected spp watch
             partition='MainTrawl'
-            parameter=[self.buttons[ind].text(), 'ProtectedSppObserver']
+            parameter=[button_text, 'ProtectedSppObserver']
         else:
             partition='MainTrawl'
-            parameter=[self.buttons[ind].text()]
-
+            parameter=[button_text]
 
         #  check to see if we already have data for this button in the database
-        gotVal=False
-        query = QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship=" + self.ship +
-                " AND survey=" + self.survey + "AND partition='" + partition + "' AND event_parameter='" + parameter[0] +
-                "' AND event_id=" + self.activeEvent)
+        gotVal = False
+        sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship=" + self.ship +
+                " AND survey=" + self.survey + "AND partition='" + partition + "' AND event_parameter='" +
+                parameter[0] + "' AND event_id=" + self.activeEvent)
         if query.first():
             #  a value is already in the database for this button
             gotVal=True
@@ -702,22 +733,22 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
         #  if we're editing a past haul (or continuing a haul after exiting out)
         if self.reloaded:
-            if ind>0:
+            if ind > 0:
                 #  check if we should set the time of the edit time dialog to the existing time for this button
-                if self.btnTimes[ind-1]<>None:
-                    self.timeDlg.setTime(str(self.btnTimes[ind-1].toString('MMddyyyy hh:mm:ss.zzz')))
+                if self.btnTimes[ind-1] != None:
+                    self.timeDlg.setTime(self.btnTimes[ind-1].toString('MMddyyyy hh:mm:ss.zzz'))
 
             #  if there is already data recorded for this button inform the user they will be overwriting it
-            if self.dataTable.item(ind, 0)<>None:
+            if self.dataTable.item(ind, 0) != None:
                 reply = QMessageBox.question(self, 'Achtung!',"<font size = 14>This will change the button time, " +
                         "and if this is an EQ or HB button the GPS location of this button press. Are you " +
                         "sure you want to do this?</font>", QMessageBox.Yes, QMessageBox.No)
-                if reply==QMessageBox.No:
+                if reply == QMessageBox.No:
                     #  user cancelled edit - nothing to do
                     return
                 else:
                     #  set the time dialog with the existing time for this button
-                    self.timeDlg.setTime(str(self.dataTable.item(ind, 0).text()))
+                    self.timeDlg.setTime(self.dataTable.item(ind, 0).text())
 
             #  show the time select dialog so the user can change the time
             if self.timeDlg.exec():
@@ -749,42 +780,41 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                 # check if we've already have an entry for this button
                 if not gotVal:
                     #  no previous data - insert
-                    query=QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, partition, " +
+                    sql = ("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, partition, " +
                             "event_parameter, parameter_value) VALUES ("+ self.ship+","+self.survey+"," +
                             self.activeEvent + ",'" + partition + "','" + parameter[0] + "','" + time + "')")
-                    self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
-
-
-                    if len(parameter)>1:
+                    self.db.dbExec(sql)
+                    
+                    if button_text.endsWith('EQ') or button_text.endsWith('Haulback'):
                         #  this is an EQ or Haulback button so we insert a GPS location too
-                        query=QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
-                                "partition, event_parameter, parameter_value) VALUES ("+ self.ship+","+self.survey+
-                                ","+self.activeEvent+",'"+partition+"','"+parameter[1]+"','"+ lat+"')")
-                        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
-                        query=QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
+                        sql = ("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
+                                "partition, event_parameter, parameter_value) VALUES ("+ self.ship+","+
+                                self.survey+","+self.activeEvent+",'"+partition+"','"+parameter[1]+"','"+ lat+"')")
+                        self.db.dbExec(sql)
+                        sql = ("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
                                 "partition, event_parameter, parameter_value) VALUES ("+ self.ship+","+
                                 self.survey+","+self.activeEvent+",'"+partition+"','"+parameter[2]+"','" + lon+"')")
-                        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                        self.db.dbExec(sql)
 
                 else:
                     #  data exists for this button - update record
-                    query=QtSql.QSqlQuery("UPDATE " + self.schema + ".event_data SET parameter_value='"+time+"' WHERE "+
+                    sql = ("UPDATE " + self.schema + ".event_data SET parameter_value='"+time+"' WHERE "+
                             "ship="+self.ship+" AND survey="+self.survey+" AND event_id="+self.activeEvent+
                             " AND partition='" + partition + "' AND event_parameter='" + parameter[0]+"'")
-                    self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                    self.db.dbExec(sql)
 
                     if len(parameter)>1:
                         #  this is an EQ or Haulback button so we update the GPS location too
-                        query=QtSql.QSqlQuery("UPDATE " + self.schema + ".event_data SET parameter_value='"+lat+
+                        sql = ("UPDATE " + self.schema + ".event_data SET parameter_value='"+lat+
                                 "' WHERE ship="+self.ship+" AND survey="+self.survey+" AND event_id="+
                                 self.activeEvent+" AND partition='"+partition+ "' AND event_parameter='"+
                                 parameter[1]+"'")
-                        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
-                        query=QtSql.QSqlQuery("UPDATE " + self.schema + ".event_data SET parameter_value='"+lon+
+                        self.db.dbExec(sql)
+                        sql = ("UPDATE " + self.schema + ".event_data SET parameter_value='"+lon+
                                 "' WHERE ship="+self.ship+" AND survey="+self.survey+" AND event_id="+
                                 self.activeEvent+" AND partition='"+partition+ "' AND event_parameter='"+
                                 parameter[2]+"'")
-                        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                        self.db.dbExec(sql)
 
             else:
                 #  user cancelled the time edit dialog - nothing to do
@@ -803,10 +833,10 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                     return
 
                 #  data exists for this button - update record
-                query=QtSql.QSqlQuery("UPDATE " + self.schema + ".event_data SET parameter_value='"+time+"' WHERE "+
+                sql = ("UPDATE " + self.schema + ".event_data SET parameter_value='"+time+"' WHERE "+
                         "ship="+self.ship+" AND survey="+self.survey+" AND event_id="+self.activeEvent+
                         " AND partition='" + partition + "' AND event_parameter='" + parameter[0]+"'")
-                self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                self.db.dbExec(sql)
 
                 #  this code needs to be reworked to generalize it so we're not assuming if there is more than
                 #  1 param that the other two are lat/lon.
@@ -814,63 +844,64 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                     
                     if parameter[1] == 'ProtectedSppObserver':
                         #  this is a protected spp observation start/stop
-                        trawlSci = None
-                        while not trawlSci:
-                            trawlSci = self.getScientistName('Who is performing the watch?')
-                            if trawlSci:
-                                query=QtSql.QSqlQuery("UPDATE " + self.schema + ".event_data SET parameter_value='"+trawlSci+
+                        watchSci = None
+                        while not watchSci:
+                            watchSci = self.getScientistName('Who is performing the watch?')
+                            if watchSci:
+                                sql = ("UPDATE " + self.schema + ".event_data SET parameter_value='"+watchSci+
                                     "' WHERE ship="+self.ship+" AND survey="+self.survey+" AND event_id="+
                                     self.activeEvent+" AND partition='"+partition+ "' AND event_parameter='"+
                                     parameter[1]+"'")
-                                self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                                self.db.dbExec(sql)
                             else:
                                 #  for now we are forcing the selection
                                 QMessageBox.warning(self, 'Achtung!',"<font size = 14>You must select a watch scientist.</font>")
                     else:
                     
                         #  this is an EQ or Haulback button so we update the GPS location too
-                        query=QtSql.QSqlQuery("UPDATE " + self.schema + ".event_data SET parameter_value='"+lat+
+                        sql = ("UPDATE " + self.schema + ".event_data SET parameter_value='"+lat+
                                 "' WHERE ship="+self.ship+" AND survey="+self.survey+" AND event_id="+
                                 self.activeEvent+" AND partition='"+partition+ "' AND event_parameter='"+
+                                self.activeEvent+" AND partition='"+partition+ "' AND event_parameter='"+
                                 parameter[1]+"'")
-                        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
-                        query=QtSql.QSqlQuery("UPDATE " + self.schema + ".event_data SET parameter_value='"+lon+
+                        self.db.dbExec(sql)
+                        sql = ("UPDATE " + self.schema + ".event_data SET parameter_value='"+lon+
                                 "' WHERE ship="+self.ship+" AND survey="+self.survey+" AND event_id="+
                                 self.activeEvent+" AND partition='"+partition+ "' AND event_parameter='"+
                                 parameter[2]+"'")
-                        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                        self.db.dbExec(sql)
 
             else:
                 # this is a new record for this button
-                query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
+                sql = ("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
                         "partition, event_parameter, parameter_value) VALUES ("+ self.ship+","+self.survey+","+
                         self.activeEvent + ",'" + partition + "','" + parameter[0] + "','" + time+"')")
-                self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                self.db.dbExec(sql)
 
                 #  this is an EQ or Haulback button so we insert a GPS location too
                 if len(parameter)>1:
                     if parameter[1] == 'ProtectedSppObserver':
                         #  this is a protected spp observation start/stop
-                        trawlSci = None
+                        watchSci = None
                         while not trawlSci:
-                            trawlSci = self.getScientistName('Who is performing the watch?')
-                            if trawlSci:
-                                query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
-                                "partition, event_parameter, parameter_value) VALUES (" + self.ship + "," + self.survey +
-                                ","+self.activeEvent+",'"+partition+"','"+parameter[1]+"','"+ trawlSci+"')")
-                                self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                            watchSci = self.getScientistName('Who is performing the watch?')
+                            if watchSci:
+                                sql = ("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
+                                        "partition, event_parameter, parameter_value) VALUES (" + self.ship + "," + self.survey +
+                                        ","+self.activeEvent+",'"+partition+"','"+parameter[1]+"','"+ watchSci+"')")
+                                self.db.dbExec(sql)
                             else:
                                 #  for now we are forcing the selection
                                 QMessageBox.warning(self, 'Achtung!',"<font size = 14>You must select a watch scientist.</font>")
                     else:
-                        query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
+                        sql = ("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
                                 "partition, event_parameter, parameter_value) VALUES (" + self.ship + "," + self.survey +
                                 ","+self.activeEvent+",'"+partition+"','"+parameter[1]+"','"+ lat+"')")
-                        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
-                        query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
+                        self.db.dbExec(sql)
+                        sql = ("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id, " +
                                 "partition, event_parameter, parameter_value) VALUES (" + self.ship + ","+self.survey+","+
                                 self.activeEvent + ",'"+partition + "','" + parameter[2] + "','" + lon + "')")
-                        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                        self.db.dbExec(sql)
 
             #  display the net dimensions dialog is this was an EQ or HB button press
             if (len(parameter)>1) and (parameter[1] != 'ProtectedSppObserver'):
@@ -879,11 +910,12 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         #  reset the event timer
         self.eventTimer.setHMS(0, 0, 0, 0)
 
-        # query data back for validation
-        query = QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+
+        # query data back for validation - if the data is not in the database then
+        # we don't display it on the screen. This informs the user that something is not right.
+        sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+
                 self.ship+" AND survey="+self.survey+" AND partition='"+  partition+"' AND event_parameter='"+
                 parameter[0]+"' AND event_id="+self.activeEvent)
-
+        query = self.db.dbQuery(sql)
         #  display the data if the query (and this insert/update) was successful
         if query.first():
             self.buttons[ind].setPalette(self.green)
@@ -915,15 +947,15 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         writeHaulRecord writes the initial records into the events and event_data tables
         '''
         #  write record to events table
-        query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".events (ship,survey,event_id,gear,event_type," +
+        sql = ("INSERT INTO " + self.schema + ".events (ship,survey,event_id,gear,event_type," +
                 "performance_code,scientist,comments) VALUES ("+self.ship+","+self.survey+","+self.activeEvent+
                 ",'"+self.gear+ "',0,0,'"+self.scientist+"','"+self.comment+"')")
-        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+        self.db.dbExec(sql)
         #  and the initial record to the event_data table
-        query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship,survey,event_id,partition," +
+        sql = ("INSERT INTO " + self.schema + ".event_data (ship,survey,event_id,partition," +
                 "event_parameter,parameter_value) VALUES ("+ self.ship+","+self.survey+","+self.activeEvent+
                 ",'MainTrawl','TrawlScientist','"+self.scientist+"')")
-        self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+        self.db.dbExec(sql)
 
 
     def stopStream(self):
@@ -972,24 +1004,22 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
             self.scsSensorList.append(k)
 
         #  now get the list of desired sensors from the database
-        query = QtSql.QSqlQuery("SELECT " + self.schema + ".measurement_setup.measurement_type, " + self.schema +
+        sql = ("SELECT " + self.schema + ".measurement_setup.measurement_type, " + self.schema +
                 ".devices.device_id, " + self.schema + ".devices.device_name, " + self.schema +
                 ".measurement_setup.device_interface FROM " + self.schema + ".measurement_setup, " +
                 self.schema + ".devices " + "WHERE " + self.schema + ".measurement_setup.device_id=" +
                 self.schema + ".devices.device_id AND "+ self.schema + ".measurement_setup.workstation_id=" +
                 self.workStation+" AND " + self.schema + ".measurement_setup.gui_module='TrawlEvent'")
-
-        while query.next():
-            #  get the device name
-            deviceName = str(query.value(2).toString())
+        query = self.db.dbQuery(sql)
+        for mtype, id, deviceName, interface in query:
 
             #  store our types, device ids, and names
-            self.measureTypes.append(query.value(0).toString())
-            self.devices.append(query.value(1).toString())
+            self.measureTypes.append(mtype)
+            self.devices.append(id)
             self.deviceNames.append(deviceName)
 
             #  check if this is an SCS device
-            if query.value(3).toString() == 'SCS':
+            if interface == 'SCS':
                 #  check if it is available from the server
                 if (deviceName in self.scsSensorList):
                     #  device is available
@@ -1023,7 +1053,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
         #  get the current time
         datetime = QDateTime.currentDateTime()
-        time = str(datetime.toString('MMddyyyy hh:mm:ss.zzz'))
+        time = datetime.toString('MMddyyyy hh:mm:ss.zzz')
 
         #  iterate thru the the list of SCS sensor datagrams and write to database
         if self.testing:
@@ -1055,10 +1085,11 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                     elapsedSecs = self.lastSCSWriteTime.secsTo(datetime)
                     if (elapsedSecs >= self.SCSLogInterval):
                         #  insert into the database
-                        QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_stream_data (ship, survey, " +
+                        sql = ("INSERT INTO " + self.schema + ".event_stream_data (ship, survey, " +
                                 "event_id, device_id, time_stamp, measurement_type, measurement_value) "+
                                 "VALUES ("+self.ship+","+self.survey+","+self.activeEvent+"," +
                                 self.devices[idx]+",'"+time+"','"+measurement+"','"+val+"')")
+                        self.db.dbExec(sql)
                         wroteToDb = True
 
                     # copy  measurements we use for display in the GUI
@@ -1078,38 +1109,41 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
     def getFullPerfList(self):
         """
-        getFullPerfList queries out the full list of gear performance options from the database
-        and
+        getFullPerfList queries out the either the short or full list of performance codes.
+        Performance codes are used to define the final performance of the event. For example
+        "OK" or "Bad" but, you know, more descriptive. MACE uses the RACE list of performance
+        codes which is really long. By default we show a shortened list with the most common
+        codes for our trawls. The user can check the "full list" checkbox and get the full
+        list of codes if they can't find one that works for their situation in the short list.
+        
         """
+        self.perfBox.setEnabled(True)
+        self.perfCode=[]
+        self.perfBox.clear()
+
         if self.perfCheckBox.checkState():
-            query=QtSql.QSqlQuery("SELECT event_performance.performance_code, event_performance.description " +
-                    "FROM " + self.schema + ".event_performance ORDER BY event_performance.performance_code DESC")
-            self.perfBox.setEnabled(True)
-            self.perfCode=[]
-            self.perfBox.clear()
-            while query.next(): # populate haul type list
-                self.perfBox.addItem(query.value(1).toString())
-                self.perfCode.append(query.value(0).toString())
-            self.perfBox.setCurrentIndex(-1)
-            self.perfBoxFlag=False
+            sql = ("SELECT event_performance.performance_code, event_performance.description " +
+                    "FROM " + self.schema + ".event_performance ORDER BY " +
+                    "event_performance.performance_code DESC")
+            
         else:
-            query=QtSql.QSqlQuery("SELECT event_performance.performance_code, event_performance.description FROM "+
+            sql = ("SELECT event_performance.performance_code, event_performance.description FROM "+
                     self.schema + ".event_performance INNER JOIN gear_options ON event_performance.performance_code" +
                     "=gear_options.performance_code WHERE (((gear_options.gear)='"+self.gearBox.currentText()+
                     "')) ORDER BY gear_options.perf_gui_order")
-            self.perfBox.setEnabled(True)
-            self.perfCode=[]
-            self.perfBox.clear()
-            while query.next(): # populate performance list
-                self.perfBox.addItem(query.value(1).toString())
-                self.perfCode.append(query.value(0).toString())
-            self.perfBox.setCurrentIndex(-1)
-            self.perfBoxFlag=False
+
+        query = self.db.dbQuery(sql)
+        for perfCode, desc in query:
+            self.perfBox.addItem(desc)
+            self.perfCode.append(perfCode)
+        self.perfBox.setCurrentIndex(-1)
+        self.perfBoxFlag=False
 
 
     def computeMeans(self):
         '''
-        computeMeans computes the mean of various stream
+        computeMeans computes the mean of various event stream data. This is done at the end
+        of the event to insert some useful measurements into the event_data table. 
         '''
 
         #  define the measurements we will be averaging
@@ -1130,35 +1164,44 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         #  do this for each partition
         for p in partitions:
             #  get the EQ time
-            query = QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+
+            sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+
                     self.ship + " AND survey=" + self.survey + " AND event_id= " + self.activeEvent +
-                    " AND partition='" + p + "' AND event_parameter = '" + parameters[0]+"'")
-            if not query.first():
+                    " AND partition='" + p + "' AND event_parameter='" + parameters[0]+"'")
+            query = self.db.dbQuery(sql)
+            eqTime, = query.first()
+            if not eqTime:
                 continue
-            eqTime=QDateTime().fromString(query.value(0).toString(),  'MMddyyyy hh:mm:ss.zzz')
+            eqTime = QDateTime().fromString(eqTime, 'MMddyyyy hh:mm:ss.zzz')
 
             #  get the haulback time
-            query=QtSql.QSqlQuery("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+
-                    self.ship + " AND survey=" + self.survey + " AND event_id = " + self.activeEvent +
-                    " AND  partition='" + p + "' AND event_parameter = '" + parameters[1]+"'")
-            if not query.first():
+            sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+
+                    self.ship + " AND survey=" + self.survey + " AND event_id=" + self.activeEvent +
+                    " AND  partition='" + p + "' AND event_parameter='" + parameters[1]+"'")
+            query = self.db.dbQuery(sql)
+            hbTime, = query.first()
+            if not hbTime:
                 continue
-            hbTime=QDateTime().fromString(query.value(0).toString(),  'MMddyyyy hh:mm:ss.zzz')
+            hbTime = QDateTime().fromString(hbTime, 'MMddyyyy hh:mm:ss.zzz')
 
             #  now loop thru the measurements defined above
             for m in inputMeasures:
                 #  get all the values for this measurement
-                query=QtSql.QSqlQuery("SELECT measurement_value, to_char(time_stamp, 'MMDDYYYY HH24:MI:SS.FF3') " +
+                vals = []
+                times = []
+                sql = ("SELECT measurement_value, to_char(time_stamp, 'MMDDYYYY HH24:MI:SS.FF3') " +
                         "FROM " + self.schema + ".event_stream_data WHERE time_stamp between to_timestamp('"+
                         eqTime.addMSecs(-500).toString('MMddyyyy hh:mm:ss.zzz') + "','MMDDYYYY HH24:MI:SS.FF3') " +
                         "and to_timestamp('" + hbTime.addMSecs(500).toString('MMddyyyy hh:mm:ss.zzz') +
                         "','MMDDYYYY HH24:MI:SS.FF3') AND measurement_type='" + m + "'")
-                vals=[]
-                times=[]
-                #  build lists of the values
-                while query.next():
-                    vals.append(query.value(0).toFloat()[0])
-                    times.append(QDateTime().fromString(query.value(1).toString(),  'MMddyyyy hh:mm:ss.zzz'))
+                query = self.db.dbQuery(sql)
+                for mval, mtime in query:
+                    try:
+                        #  try to convert the value to a float
+                        vals.append(float(mval))
+                        times.append(QDateTime().fromString(mtime,  'MMddyyyy hh:mm:ss.zzz'))
+                    except:
+                        #  must be a bad measurement?
+                        pass
 
                 #  if we have values, calculate the mean
                 if len(times)>0:
@@ -1179,28 +1222,30 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                         totmean = vals[0]
 
                     #  check if the average has previously been computed
-                    query = QtSql.QSqlQuery("SELECT * FROM " + self.schema + ".event_data WHERE ship=" +
+                    sql = ("SELECT * FROM " + self.schema + ".event_data WHERE ship=" +
                             self.ship + " AND survey=" + self.survey + " AND event_id=" + self.activeEvent +
                             " AND partition='" + p + "' AND event_parameter='Avg" + m + "'")
-                    if m == 'SurfaceTemp': # We have a mismatch where the value in the evat_stream_data table =SurfaceTemp,
+                    query = self.db.dbQuery(sql)
+                    
+                    # We have a mismatch where the value in the event_stream_data table =SurfaceTemp,
                     # but the value in Event_Paremeters is equal to Surfacetemperature,
-                    #so we're just assignigning it to the new variable name....
-                            m= 'SurfaceTemperature'
+                    # so we're just assigning it to the new variable name....
+                    if m == 'SurfaceTemp': 
+                        m = 'SurfaceTemperature'
+                        
                     if query.first():
                         #  it has, update it with the new value
-                        query = QtSql.QSqlQuery("UPDATE " + self.schema + ".event_data SET parameter_value='"+
+                        sql = ("UPDATE " + self.schema + ".event_data SET parameter_value='"+
                                 str(totmean) + "' WHERE ship=" + self.ship + " AND survey=" +
                                 self.survey + " AND event_id=" + self.activeEvent + " AND partition='" + p +
                                 "' AND event_parameter='Avg" + m + "'")
                     else:
                         #  it has not, insert the new value
-                        query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship,survey," +
+                        sql = ("INSERT INTO " + self.schema + ".event_data (ship,survey," +
                                 "event_id, partition, event_parameter, parameter_value) VALUES (" +
                                 self.ship + "," + self.survey + "," + self.activeEvent + ",'" + p +
                                 "','Avg" + m + "','" + str(totmean) + "')")
-
-                    #  make an entry in the logger
-                    self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                    self.db.dbExec(sql)
 
 
     def errorSCS(self, error):
@@ -1248,6 +1293,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
 
     def getComment(self):
+        
         keyDialog = keypad.KeyPad(self.comment, self)
         keyDialog.exec()
         if keyDialog.okFlag:
@@ -1264,15 +1310,18 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
 
             #  check if an entry for this event exists yet. This needs to be done
             #  because comments can be made before an event is created.
-            query = QtSql.QSqlQuery("SELECT event_id FROM " + self.schema + ".events WHERE ship="+
+            sql = ("SELECT event_id FROM " + self.schema + ".events WHERE ship="+
                     self.ship + " AND survey=" + self.survey + " AND event_id= " + self.activeEvent)
+            query = self.db.dbQuery(sql)
             if query.first():
                 #  the event exists, update the comment
-                if self.comment <> '':
-                    query = QtSql.QSqlQuery("UPDATE " + self.schema + ".events SET comments = '"+ self.comment+
+                if self.comment != '':
+                    sql = ("UPDATE " + self.schema + ".events SET comments = '"+ self.comment+
                         "' WHERE ship="+self.ship+ " AND survey="+self.survey+" AND event_id="+self.activeEvent)
-                self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                self.db.dbExec(sql)
 
+        #  the comment text persists in the comment dialog for the duration of the event.
+        #  It is also updated when the event for is closed.
 
 
     def goExit(self):
@@ -1380,82 +1429,87 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
                 self.stopStream()
 
             # update haul type
-            query = QtSql.QSqlQuery("UPDATE events SET event_type = "+self.typeCode[self.typeBox.currentIndex()]+
+            sql = ("UPDATE events SET event_type = "+self.typeCode[self.typeBox.currentIndex()]+
                     " WHERE ship="+self.ship+ " AND survey="+self.survey+" AND event_id="+self.activeEvent)
-            self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+            self.db.dbExec(sql)
 
             # update performance
             if  self.perfBox.currentIndex() != -1:
-                query = QtSql.QSqlQuery("UPDATE events SET performance_code = " +
+                sql = ("UPDATE events SET performance_code = " +
                         self.perfCode[self.perfBox.currentIndex()]+" WHERE ship="+self.ship+
                         " AND survey="+self.survey+" AND event_id="+self.activeEvent)
-                self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                self.db.dbExec(sql)
 
             # update comment
-            if self.comment <> '':
-                query = QtSql.QSqlQuery("UPDATE " + self.schema + ".events SET comments = '"+self.comment+
-                    "' WHERE ship="+self.ship+
-                    " AND survey="+self.survey+" AND event_id="+self.activeEvent)
-                self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+            if self.comment != '':
+                sql = ("UPDATE " + self.schema + ".events SET comments = '"+self.comment+
+                        "' WHERE ship="+self.ship+
+                        " AND survey="+self.survey+" AND event_id="+self.activeEvent)
+                self.db.dbExec(sql)
 
             #delete current records if they exist
-            query = QtSql.QSqlQuery("DELETE FROM " + self.schema + ".event_data WHERE ship="+self.ship+
-                " AND survey="+self.survey+" AND event_id="+self.activeEvent+" AND event_parameter='Transect'")
-            self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
-            query = QtSql.QSqlQuery("DELETE FROM " + self.schema + ".event_data WHERE ship="+self.ship+
-                " AND survey="+self.survey+" AND event_id="+self.activeEvent+" AND event_parameter='Stratum'")
-            self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
-            query = QtSql.QSqlQuery("DELETE FROM " + self.schema + ".event_data WHERE ship="+self.ship+
-                " AND survey="+self.survey+" AND event_id="+self.activeEvent+" AND event_parameter='MarineMammalPresent'")
-            self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
-            query = QtSql.QSqlQuery("DELETE FROM " + self.schema + ".event_data WHERE ship="+self.ship+
-                " AND survey="+self.survey+" AND event_id="+self.activeEvent+" AND event_parameter='EndangeredSeabirdPresent'")
-            self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
-            query = QtSql.QSqlQuery("DELETE FROM " + self.schema + ".gear_accessory WHERE ship="+self.ship+
-                " AND survey="+self.survey+" AND event_id="+self.activeEvent)
-            self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+            sql = ("DELETE FROM " + self.schema + ".event_data WHERE ship="+self.ship+
+                    " AND survey="+self.survey+" AND event_id="+self.activeEvent+
+                    " AND event_parameter='Transect'")
+            self.db.dbExec(sql)
+            sql = ("DELETE FROM " + self.schema + ".event_data WHERE ship="+self.ship+
+                    " AND survey="+self.survey+" AND event_id="+self.activeEvent+
+                    " AND event_parameter='Stratum'")
+            self.db.dbExec(sql)
+            sql = ("DELETE FROM " + self.schema + ".event_data WHERE ship="+self.ship+
+                    " AND survey="+self.survey+" AND event_id="+self.activeEvent+
+                    " AND event_parameter='MarineMammalPresent'")
+            self.db.dbExec(sql)
+            sql = ("DELETE FROM " + self.schema + ".event_data WHERE ship="+self.ship+
+                    " AND survey="+self.survey+" AND event_id="+self.activeEvent+
+                    " AND event_parameter='EndangeredSeabirdPresent'")
+            self.db.dbExec(sql)
+            sql = ("DELETE FROM " + self.schema + ".gear_accessory WHERE ship="+self.ship+
+                    " AND survey="+self.survey+" AND event_id="+self.activeEvent)
+            self.db.dbExec(sql)
 
             # write transect number
             if str(self.transBtn.text()) != '':
-                query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id,partition,  event_parameter,  parameter_value) VALUES "+
-                                    " ("+self.ship+","+self.survey+","+self.activeEvent+",'MainTrawl', 'Transect', '"+self.transBtn.text()+"')")
-                self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                sql = ("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id,partition,  event_parameter,  parameter_value) VALUES "+
+                        " ("+self.ship+","+self.survey+","+self.activeEvent+",'MainTrawl', 'Transect', '"+self.transBtn.text()+"')")
+                self.db.dbExec(sql)
 
             # write stratum
             if str(self.stratumBtn.text()) != '':
-                query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id,partition,  event_parameter,  parameter_value) VALUES "+
-                                    " ("+self.ship+","+self.survey+","+self.activeEvent+",'MainTrawl', 'Stratum', '"+self.stratumBtn.text()+"')")
-                self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                sql = ("INSERT INTO " + self.schema + ".event_data (ship,survey,event_id,partition,event_parameter,parameter_value) VALUES "+
+                        " ("+self.ship+","+self.survey+","+self.activeEvent+",'MainTrawl', 'Stratum', '"+self.stratumBtn.text()+"')")
+                self.db.dbExec(sql)
 
             # write checkboxes
             if self.marMammalBox.isChecked():
                 status='Y'
             else:
                 status='N'
-            query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id,partition,  event_parameter,  parameter_value) VALUES "+
+            sql = ("INSERT INTO " + self.schema + ".event_data (ship,survey,event_id,partition,event_parameter,parameter_value) VALUES "+
                                     " ("+self.ship+","+self.survey+","+self.activeEvent+",'MainTrawl', 'MarineMammalPresent','"+status+"')")
-            self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+            self.db.dbExec(sql)
 
             if self.seaBirdBox.isChecked():
                 status='Y'
             else:
                 status='N'
-            query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".event_data (ship, survey, event_id,partition,  event_parameter,  parameter_value) VALUES "+
-                                    " ("+self.ship+","+self.survey+","+self.activeEvent+",'MainTrawl', 'EndangeredSeabirdPresent','"+status+"')")
-            self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+            sql = ("INSERT INTO " + self.schema + ".event_data (ship,survey,event_id,partition,event_parameter,parameter_value) VALUES "+
+                    " ("+self.ship+","+self.survey+","+self.activeEvent+",'MainTrawl', 'EndangeredSeabirdPresent','"+status+"')")
+            self.db.dbExec(sql)
 
             # write accessories
             for accessory in self.gaLabelList:
                 if (self.gaCBList[self.gaLabelList.index(accessory)].currentIndex() > -1):
                     value = self.gaCBList[self.gaLabelList.index(accessory)].currentText()
-                    query = QtSql.QSqlQuery("INSERT INTO " + self.schema + ".gear_accessory (ship, survey, event_id," +
+                    sql = ("INSERT INTO " + self.schema + ".gear_accessory (ship, survey, event_id," +
                             "gear_accessory, gear_accessory_option) VALUES ("+self.ship+","+self.survey+","+
                             self.activeEvent+",'"+accessory.text()+"','"+value+"')")
-                    self.backLogger.info(QDateTime.currentDateTime().toString('MMddyyyy hh:mm:ss')+","+query.lastQuery())
+                    self.db.dbExec(sql)
 
             #  update the active event
-            query = QtSql.QSqlQuery("UPDATE " + self.schema + ".application_configuration SET parameter_value=" +
+            sql = ("UPDATE " + self.schema + ".application_configuration SET parameter_value=" +
                             self.activeEvent + " WHERE parameter='ActiveEvent'")
+            self.db.dbExec(sql)
 
             self.computeMeans()
 

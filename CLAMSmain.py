@@ -189,6 +189,7 @@ class CLAMSMain(QMainWindow, ui_CLAMSMain.Ui_clamsMain):
         sql = ("SELECT parameter, parameter_value FROM " + self.schema +
                 ".workstation_configuration WHERE workstation_ID = " +
                 self.workStation)
+        query = self.db.dbQuery(sql)
         #  only update missing keys so we don't overwrite any keys from the .ini
         for parameter, parameter_value in query:
             if parameter not in self.settings:

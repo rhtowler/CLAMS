@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QColor
 from PyQt6.QtCore import QEvent, Qt, QObject
 from ui.xga import ui_NumPad
-from sys import argv
 
 
 class NumPad(QDialog, ui_NumPad.Ui_numpad):
