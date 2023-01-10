@@ -45,7 +45,7 @@
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
-from ui.xga import ui_MACETrawlEvent
+from ui import ui_MACETrawlEvent
 import numpad
 import keypad
 import messagedlg
@@ -56,35 +56,33 @@ from acquisition.scs import QSCSClient
 
 
 class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
-
-
     def __init__(self, parent=None):
-        '''
-            The CLAMS Trawl event dialog initialization method. This method will
-            set some default attributes, connect signals, and perform some other
-            basic setup tasks. It then fires off a single shot timer to continue
-            init in a separate method.
-        '''
+        """
+        The CLAMS Trawl event dialog initialization method. This method will
+        set some default attributes, connect signals, and perform some other
+        basic setup tasks. It then fires off a single shot timer to continue
+        init in a separate method.
+        """
 
         #  call superclass init methods and GUI form setup method
         super().__init__(parent)
         self.setupUi(self)
         
-        self.setAttribute(Qt.WA_DeleteOnClose)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
         #  copy some properties from our parent
         self.db = parent.db
         self.schema = parent.schema
-        self.activeEvent=parent.activeEvent
-        self.survey=parent.survey
-        self.ship=parent.ship
-        self.settings=parent.settings
-        self.errorSounds=parent.errorSounds
-        self.errorIcons=parent.errorIcons
-        self.workStation=parent.workStation
-        self.birdStatus=parent.birdStatus
-        self.mammalStatus=parent.mammalStatus
-        self.testing=parent.testing
+        self.activeEvent = parent.activeEvent
+        self.survey = parent.survey
+        self.ship = parent.ship
+        self.settings = parent.settings
+        self.errorSounds = parent.errorSounds
+        self.errorIcons = parent.errorIcons
+        self.workStation = parent.workStation
+        self.birdStatus = parent.birdStatus
+        self.mammalStatus = parent.mammalStatus
+        self.testing = parent.testing
         self.reloaded = parent.reloaded
 
         #  setup reoccurring dialogs
@@ -102,15 +100,13 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         self.gearKey = []
         self.comment = ""
         self.incomplete = False
-        self.gaCBList = [self.accessBox1, self.accessBox2, self.accessBox3,
-                self.accessBox4]
-        self.gaLabelList = [self.accessLabel1, self.accessLabel2,
-                self.accessLabel3, self.accessLabel4]
-        self.buttons=[self.btn1,self.btn2,self.btn3,self.btn4,self.btn5
-                ,self.btn6,self.btn7,self.btn8,self.btn9]
-        self.eventTimer=QTime()
-        self.recordStream=False
-        self.dispVector=['','','']
+        self.gaCBList = [self.accessBox1, self.accessBox2, self.accessBox3, self.accessBox4]
+        self.gaLabelList = [self.accessLabel1, self.accessLabel2, self.accessLabel3, self.accessLabel4]
+        self.buttons = [self.btn1, self.btn2, self.btn3, self.btn4, self.btn5, self.btn6, self.btn7,
+                        self.btn8, self.btn9]
+        self.eventTimer = QTime()
+        self.recordStream = False
+        self.dispVector = ['', '', '']
         self.SCSPollRate = 1
         self.reloaded = False
         self.scsRetries = 0
@@ -129,18 +125,18 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         self.lastSCSWriteTime = QDateTime.currentDateTime()
 
         # color palettes
-        self.red=QPalette()
-        self.red.setColor(QPalette.ButtonText,QColor(230, 0, 0))
-        self.green=QPalette()
-        self.green.setColor(QPalette.ButtonText,QColor(0, 230, 0))
-        self.yellow=QPalette()
-        self.yellow.setColor(QPalette.ButtonText,QColor(180, 180, 0))
+        self.red = QPalette()
+        self.red.setColor(QPalette.ButtonText, QColor(230, 0, 0))
+        self.green = QPalette()
+        self.green.setColor(QPalette.ButtonText, QColor(0, 230, 0))
+        self.yellow = QPalette()
+        self.yellow.setColor(QPalette.ButtonText, QColor(180, 180, 0))
         self.haulLabel.setText(self.activeEvent)
 
-#TODO: UPDATE SCS CLIENT
-        #  create an instance of the SCS client and connect the signals
-        self.scsClient = QSCSClient.QSCSClient(self.settings['SCSHost'],
-                self.settings['SCSPort'])
+        # TODO: UPDATE SCS CLIENT
+
+        # create an instance of the SCS client and connect the signals
+        self.scsClient = QSCSClient.QSCSClient(self.settings['SCSHost'], self.settings['SCSPort'])
         self.scsClient.SCSGetReceived.connect(self.writeStream)
         self.scsClient.SCSError.connect(self.errorSCS)
 
@@ -185,7 +181,6 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         initTimer.setSingleShot(True)
         initTimer.timeout.connect(self.initTrawlEventDialog)
         initTimer.start(0)
-
 
     def initTrawlEventDialog(self):
         '''
@@ -297,10 +292,10 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         ind = self.gearBox.findText(self.gear)
         self.gearBox.setCurrentIndex(ind)
 
-        #populate lists
+        # populate lists
         self.getOptions()
 
-        #set the event type
+        # set the event type
         if ev_type in self.typeCode:
             ind = self.typeCode.index(ev_type)
         else:
@@ -314,7 +309,7 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
             ind = self.perfCode.index(perf_code)
         else:
             #  not in short perf code list, check in the full list
-            self.perfCheckBox.setCheckState(Qt.Checked)
+            self.perfCheckBox.setCheckState(Qt.CheckState.Checked)
             self.getFullPerfList()
             ind = -1
             if perf_code in self.perfCode:
@@ -350,9 +345,10 @@ class MACETrawlEvent(QDialog, ui_MACETrawlEvent.Ui_MACETrawlEvent):
         if stratum:
             self.stratumBtn.setText(stratum)
 
-#TODO: FIGURE OUT HOW THESE WILL CHANGE WITH NEW OBSERVATION PROTOCOL. These checkboxes
-#      will probably be removed and replaced with a dialog displayed when an event is
-#      scrubbed capturing the reason it was scrubbed.
+        # TODO: FIGURE OUT HOW THESE WILL CHANGE WITH NEW OBSERVATION PROTOCOL. These checkboxes
+        #   will probably be removed and replaced with a dialog displayed when an event is
+        #   scrubbed capturing the reason it was scrubbed.
+
         # reload mammal and bird checkboxes
         sql = ("SELECT parameter_value FROM " + self.schema + ".event_data WHERE ship="+
                 self.ship + " AND survey=" + self.survey + " AND event_id=" +

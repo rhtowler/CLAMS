@@ -10,7 +10,7 @@ specific updates:
 """
 
 from PyQt6.QtWidgets import *
-from ui.xga import ui_ABLImMatSalmonSpecialStudiesDlg
+from ui import ui_ABLImMatSalmonSpecialStudiesDlg
 from sys import argv
 
 

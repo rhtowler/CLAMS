@@ -14,7 +14,7 @@ specific updates:
 """
 
 from PyQt6.QtWidgets import *
-from ui.xga import ui_ClipDlg
+from ui import ui_ClipDlg
 from sys import argv
 import numpad
 

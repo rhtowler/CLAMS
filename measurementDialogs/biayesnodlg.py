@@ -11,7 +11,7 @@ specific updates:
 """
 
 from PyQt6.QtWidgets import *
-from ui.xga import ui_YesNoDlg
+from ui import ui_YesNoDlg
 from sys import argv
 
 

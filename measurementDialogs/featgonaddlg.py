@@ -18,13 +18,13 @@ todo: test this when able to connect to db
 from PyQt6.QtWidgets import *
 from PyQt6.QtSql import QSqlQuery
 from PyQt6.QtGui import QIcon
-from ui.xga import ui_FEATNadDlg
+from ui import ui_FEATGonadDlg
 import numpad
 import messagedlg
 from collections import OrderedDict
 
 
-class FEATNadDlg(QDialog, ui_FEATNadDlg.Ui_Dialog):
+class FEATNadDlg(QDialog, ui_FEATGonadDlg.Ui_Dialog):
     def __init__(self, parent=None):
         super(FEATNadDlg, self).__init__(parent)
         self.setupUi(self)

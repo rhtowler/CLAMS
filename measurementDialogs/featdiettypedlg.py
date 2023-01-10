@@ -19,8 +19,8 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import Qt
 from PyQt6.QtSql import QSqlQuery
 from PyQt6.QtGui import QIcon, QImage, QPixmap
-from ui.xga import ui_FEATDietTypeDlg
-from ui.xga import ui_FEATDietSpDlg
+from ui import ui_FEATDietTypeDlg
+from ui import ui_FEATDietSpDlg
 import numpad
 import messagedlg
 from collections import OrderedDict
